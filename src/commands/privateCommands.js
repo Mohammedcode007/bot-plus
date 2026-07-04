@@ -138,6 +138,8 @@ export async function handlePrivateMessage({
     fromUsername,
   };
 
+  const createdBy = getSenderLabel(senderInfo);
+
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('📩 [PRIVATE_COMMAND_HANDLER]', {
     fromUserId,
@@ -264,7 +266,7 @@ export async function handlePrivateMessage({
       username,
       password,
       room,
-      createdBy: getSenderLabel(senderInfo),
+      createdBy,
     });
 
     mainBot.sendDm(fromUserId, result.message);
@@ -275,6 +277,12 @@ export async function handlePrivateMessage({
         password,
         room,
         type: 'controlled',
+
+        /*
+          مهم لتغيير البروفايل بعد الدخول.
+        */
+        createdBy,
+        mainBot,
       });
 
       mainBot.sendDm(fromUserId, started.message);
@@ -309,7 +317,7 @@ export async function handlePrivateMessage({
       username,
       password,
       room,
-      createdBy: getSenderLabel(senderInfo),
+      createdBy,
     });
 
     mainBot.sendDm(fromUserId, result.message);
@@ -320,6 +328,13 @@ export async function handlePrivateMessage({
         password,
         room,
         type: 'silent',
+
+        /*
+          مهم لتغيير بروفايل البوت الصامت:
+          Silent Bot | Master | Room | Main
+        */
+        createdBy,
+        mainBot,
       });
 
       mainBot.sendDm(fromUserId, started.message);
@@ -361,7 +376,7 @@ export async function handlePrivateMessage({
 
     const result = await addMusicBot({
       room,
-      createdBy: getSenderLabel(senderInfo),
+      createdBy,
     });
 
     mainBot.sendDm(fromUserId, result.message);
@@ -372,6 +387,12 @@ export async function handlePrivateMessage({
         password: musicPassword,
         room,
         type: 'music',
+
+        /*
+          بوت المزيكا له بروفايل ثابت من botSession.service.js
+        */
+        createdBy,
+        mainBot,
       });
 
       mainBot.sendDm(fromUserId, started.message);

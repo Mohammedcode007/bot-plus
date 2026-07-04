@@ -1,0 +1,40 @@
+{
+  "rooms": {
+    "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e": {
+      "roomId": "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e",
+      "roomName": "مصر",
+      "users": [
+        {
+          "userId": "113152984",
+          "username": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+          "photoUrl": "https://res.cloudinary.com/dbennudkl/image/upload/v1781449143/bimo/users/avatars/113152984_1781449141614.jpg",
+          "role": "none",
+          "current": ""
+        },
+        {
+          "userId": "251110670",
+          "username": "controller_bot",
+          "photoUrl": "",
+          "role": "none",
+          "current": ""
+        },
+        {
+          "userId": "313110889",
+          "username": "ahmed",
+          "photoUrl": "https://res.cloudinary.com/dbennudkl/image/upload/v1783140106/bimo/users/avatars/313110889_1783140106215.jpg",
+          "role": "none",
+          "current": ""
+        },
+        {
+          "userId": "285117878",
+          "username": "music_dj",
+          "photoUrl": "",
+          "role": "none",
+          "current": ""
+        }
+      ],
+      "count": 4,
+      "updatedAt": "2026-07-04T07:03:50.146Z"
+    }
+  }
+}

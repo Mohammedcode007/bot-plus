@@ -2,11 +2,17 @@ import { ENV } from './config/env.js';
 import { WsClient } from './core/wsClient.js';
 import { handlePrivateMessage } from './commands/privateCommands.js';
 import { getAcl } from './services/acl.service.js';
-
+import {
+  restoreSavedBotSessions,
+  updateMainBotProfile,
+} from './services/botSession.service.js';
 function readText(...values) {
   for (const value of values) {
     const text = String(value || '').trim();
-    if (text) return text;
+
+    if (text) {
+      return text;
+    }
   }
 
   return '';
@@ -63,7 +69,7 @@ async function main() {
   const mainBot = new WsClient({
     username: ENV.ADMIN_BOT_USERNAME,
     password: ENV.ADMIN_BOT_PASSWORD,
-    label: 'MAIN:tebot',
+    label: `MAIN:${ENV.ADMIN_BOT_USERNAME}`,
   });
 
   mainBot.onMessage(async (data) => {
@@ -96,6 +102,25 @@ async function main() {
   mainBot.connect();
 
   console.log('🚀 TalkinPlus bot started');
+
+  /*
+    استرجاع البوتات والغرف المحفوظة بعد تشغيل البوت الرئيسي.
+    الانتظار 3 ثواني حتى يأخذ البوت الرئيسي فرصة للاتصال وتسجيل الدخول.
+  */
+ setTimeout(async () => {
+  try {
+    const result = await restoreSavedBotSessions(mainBot);
+
+    console.log('♻️ [BOT_RESTORE] RESULT', result);
+
+    updateMainBotProfile(mainBot);
+  } catch (error) {
+    console.log('❌ [BOT_RESTORE] ERROR', {
+      message: error?.message,
+      stack: error?.stack,
+    });
+  }
+}, 3000);
 }
 
 main().catch((error) => {

@@ -1,10 +1,21 @@
 import { WsClient } from '../core/wsClient.js';
+import { ENV } from '../config/env.js';
 
 import {
+  getBotRooms,
   markMusicBotJoined,
   markMusicBotFailed,
   removeMusicBot,
 } from './botRegistry.service.js';
+
+import {
+  handleControlledRoomCommand,
+  saveRoomUsersFromEvent,
+} from '../commands/roomCommands.js';
+
+import {
+  handleMusicRoomCommand,
+} from '../commands/musicCommands.js';
 
 const sessions = new Map();
 
@@ -39,16 +50,66 @@ function isRoomJoinEvent(data) {
   );
 }
 
+function getMasterName(value) {
+  return clean(value) ||
+    clean(ENV.BOT_OWNER_USERNAME) ||
+    clean(ENV.BOT_OWNER_USER_ID) ||
+    'Master';
+}
+
+function buildBotProfileStatus({
+  type,
+  room,
+  createdBy,
+}) {
+  const botType = clean(type);
+  const roomName = clean(room);
+  const master = getMasterName(createdBy);
+  const mainBot = clean(ENV.ADMIN_BOT_USERNAME) || 'main';
+
+  if (botType === 'music') {
+    return 'Music DJ | Auto Play | 24/7';
+  }
+
+  if (botType === 'silent') {
+    return `Silent Bot | Master: ${master} | Room: ${roomName} | Main: ${mainBot}`;
+  }
+
+  if (botType === 'controlled') {
+    return `Controller Bot | Master: ${master} | Room: ${roomName} | Main: ${mainBot}`;
+  }
+
+  return `TalkinPlus Bot | Room: ${roomName}`;
+}
+
+export function buildMainBotProfileStatus() {
+  return `Smart Control Hub | Connected bots: ${sessions.size}`;
+}
+
+export function updateMainBotProfile(mainBot) {
+  if (!mainBot || typeof mainBot.updateProfileStatus !== 'function') {
+    return false;
+  }
+
+  return mainBot.updateProfileStatus(
+    buildMainBotProfileStatus(),
+  );
+}
+
 export function startBotSession({
   username,
   password,
   room,
   type,
+  restore = false,
+  createdBy = '',
+  mainBot = null,
 }) {
   const botUsername = clean(username);
   const botPassword = clean(password);
   const roomName = clean(room);
   const botType = clean(type) || 'controlled';
+  const master = getMasterName(createdBy);
 
   if (!botUsername || !botPassword || !roomName) {
     return {
@@ -82,14 +143,21 @@ export function startBotSession({
     type: botType,
     username: botUsername,
     room: roomName,
+    createdBy: master,
     startedAt: new Date().toISOString(),
     joined: false,
     roomId: '',
     lastError: '',
     joinRequested: false,
+    profileUpdated: false,
+    restore: restore === true,
   };
 
   sessions.set(key, sessionInfo);
+
+  if (mainBot) {
+    updateMainBotProfile(mainBot);
+  }
 
   client.onMessage(async (data, ws) => {
     if (isLoginSuccess(data)) {
@@ -103,14 +171,10 @@ export function startBotSession({
         `🚪 [${botType}:${botUsername}] LOGIN_SUCCESS_JOIN_SMART`,
         {
           room: roomName,
+          restore: sessionInfo.restore,
         },
       );
 
-      /*
-        مهم:
-        لا نستخدم ws.joinRoom(roomName)
-        لأن الباك يبحث عن roomId الحقيقي وليس اسم الغرفة.
-      */
       const joinResult = await ws.joinRoomSmart(roomName);
 
       console.log(
@@ -129,7 +193,15 @@ export function startBotSession({
             reason: sessionInfo.lastError,
           });
 
-          await removeMusicBot(roomName);
+          if (!sessionInfo.restore) {
+            await removeMusicBot(roomName);
+          }
+        }
+
+        sessions.delete(key);
+
+        if (mainBot) {
+          updateMainBotProfile(mainBot);
         }
 
         return;
@@ -150,6 +222,7 @@ export function startBotSession({
         `❌ [${botType}:${botUsername}] LOGIN_FAILED`,
         {
           reason: data.reason,
+          restore: sessionInfo.restore,
         },
       );
 
@@ -159,10 +232,17 @@ export function startBotSession({
           reason: sessionInfo.lastError,
         });
 
-        await removeMusicBot(roomName);
+        if (!sessionInfo.restore) {
+          await removeMusicBot(roomName);
+        }
       }
 
       sessions.delete(key);
+
+      if (mainBot) {
+        updateMainBotProfile(mainBot);
+      }
+
       return;
     }
 
@@ -174,23 +254,60 @@ export function startBotSession({
           sessionInfo.roomId ||
           '';
 
+        const joinedRoomName =
+          data.roomName ||
+          data.room?.name ||
+          roomName;
+
         sessionInfo.joined = true;
         sessionInfo.roomId = joinedRoomId;
         sessionInfo.lastError = '';
+
+        /*
+          حفظ يوزرس الغرفة بعد نجاح الدخول لو السيرفر رجّع activeUsers/users.
+        */
+        await saveRoomUsersFromEvent({
+          data,
+          sessionInfo,
+        });
 
         console.log(
           `✅ [${botType}:${botUsername}] ROOM_JOIN_CONFIRMED`,
           {
             room: roomName,
             roomId: joinedRoomId,
+            restore: sessionInfo.restore,
           },
         );
+
+        if (!sessionInfo.profileUpdated) {
+          const statusText = buildBotProfileStatus({
+            type: botType,
+            room: joinedRoomName,
+            createdBy: master,
+          });
+
+          ws.updateProfileStatus(statusText);
+
+          sessionInfo.profileUpdated = true;
+
+          console.log(
+            `👤 [${botType}:${botUsername}] PROFILE_STATUS_UPDATE_SENT`,
+            {
+              statusText,
+            },
+          );
+        }
 
         if (botType === 'music') {
           await markMusicBotJoined({
             room: roomName,
             roomId: joinedRoomId,
           });
+        }
+
+        if (mainBot) {
+          updateMainBotProfile(mainBot);
         }
 
         return;
@@ -205,6 +322,7 @@ export function startBotSession({
         {
           room: roomName,
           reason: data.reason,
+          restore: sessionInfo.restore,
         },
       );
 
@@ -214,34 +332,214 @@ export function startBotSession({
           reason: sessionInfo.lastError,
         });
 
-        await removeMusicBot(roomName);
+        if (!sessionInfo.restore) {
+          await removeMusicBot(roomName);
+        }
+      }
+
+      sessions.delete(key);
+
+      if (mainBot) {
+        updateMainBotProfile(mainBot);
       }
 
       return;
     }
 
+    /*
+      نحاول حفظ اليوزرس من أي حدث غرفة يحتوي activeUsers/users.
+      هذا مهم لأن بعض السيرفرات لا ترسل users داخل room.join،
+      لكنها ترسلها في room.update أو room.users_event.
+    */
+    await saveRoomUsersFromEvent({
+      data,
+      sessionInfo,
+    });
+
     if (botType === 'controlled') {
-      /*
-        لاحقًا سنضع أوامر الغرفة هنا.
-      */
+      const handled = await handleControlledRoomCommand({
+        data,
+        ws,
+        sessionInfo,
+      });
+
+      if (handled) {
+        return;
+      }
     }
 
     if (botType === 'music') {
-      /*
-        لاحقًا أوامر المزيكا هنا.
-      */
-    }
+      const handled = await handleMusicRoomCommand({
+        data,
+        ws,
+        sessionInfo,
+      });
 
-    /*
-      silent لا يفعل أي شيء.
-    */
+      if (handled) {
+        return;
+      }
+    }
   });
 
   client.connect();
 
   return {
     ok: true,
-    message: `✅ تم تشغيل ${botType} bot: ${botUsername} في ${roomName}`,
+    message: restore
+      ? `♻️ تم استرجاع ${botType} bot: ${botUsername} في ${roomName}`
+      : `✅ تم تشغيل ${botType} bot: ${botUsername} في ${roomName}`,
+  };
+}
+
+export async function restoreSavedBotSessions(mainBot = null) {
+  const data = await getBotRooms();
+
+  data.controlled ||= {};
+  data.music ||= {};
+  data.silent ||= {};
+
+  let started = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('♻️ [BOT_RESTORE] START');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  for (const [room, bot] of Object.entries(data.controlled)) {
+    const username = clean(bot?.username);
+    const password = clean(bot?.password);
+    const roomName = clean(bot?.room || room);
+    const createdBy = clean(bot?.createdBy);
+
+    if (!username || !password || !roomName) {
+      failed += 1;
+
+      console.log('❌ [BOT_RESTORE] invalid controlled bot:', {
+        room,
+        bot,
+      });
+
+      continue;
+    }
+
+    const result = startBotSession({
+      username,
+      password,
+      room: roomName,
+      type: 'controlled',
+      restore: true,
+      createdBy,
+      mainBot,
+    });
+
+    if (result.ok) {
+      started += 1;
+    } else {
+      failed += 1;
+    }
+
+    console.log('[BOT_RESTORE] controlled:', result.message);
+  }
+
+  for (const [room, bot] of Object.entries(data.music)) {
+    const username = clean(bot?.username);
+    const password = clean(bot?.password);
+    const roomName = clean(bot?.room || room);
+    const createdBy = clean(bot?.createdBy);
+
+    if (!username || !password || !roomName) {
+      failed += 1;
+
+      console.log('❌ [BOT_RESTORE] invalid music bot:', {
+        room,
+        bot,
+      });
+
+      continue;
+    }
+
+    const result = startBotSession({
+      username,
+      password,
+      room: roomName,
+      type: 'music',
+      restore: true,
+      createdBy,
+      mainBot,
+    });
+
+    if (result.ok) {
+      started += 1;
+    } else {
+      failed += 1;
+    }
+
+    console.log('[BOT_RESTORE] music:', result.message);
+  }
+
+  for (const [room, bots] of Object.entries(data.silent)) {
+    if (!Array.isArray(bots)) {
+      skipped += 1;
+      continue;
+    }
+
+    for (const bot of bots) {
+      const username = clean(bot?.username);
+      const password = clean(bot?.password);
+      const roomName = clean(bot?.room || room);
+      const createdBy = clean(bot?.createdBy);
+
+      if (!username || !password || !roomName) {
+        failed += 1;
+
+        console.log('❌ [BOT_RESTORE] invalid silent bot:', {
+          room,
+          bot,
+        });
+
+        continue;
+      }
+
+      const result = startBotSession({
+        username,
+        password,
+        room: roomName,
+        type: 'silent',
+        restore: true,
+        createdBy,
+        mainBot,
+      });
+
+      if (result.ok) {
+        started += 1;
+      } else {
+        failed += 1;
+      }
+
+      console.log('[BOT_RESTORE] silent:', result.message);
+    }
+  }
+
+  if (mainBot) {
+    updateMainBotProfile(mainBot);
+  }
+
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('♻️ [BOT_RESTORE] DONE', {
+    started,
+    skipped,
+    failed,
+    sessions: sessions.size,
+  });
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  return {
+    ok: true,
+    started,
+    skipped,
+    failed,
+    sessions: sessions.size,
   };
 }
 
@@ -249,6 +547,7 @@ export function stopBotSession({
   username,
   room,
   type,
+  mainBot = null,
 }) {
   const botUsername = clean(username);
   const roomName = clean(room);
@@ -281,6 +580,10 @@ export function stopBotSession({
 
   sessions.delete(key);
 
+  if (mainBot) {
+    updateMainBotProfile(mainBot);
+  }
+
   return {
     ok: true,
     message: `✅ تم إيقاف ${botType} bot: ${botUsername} من ${roomName}`,
@@ -297,9 +600,11 @@ export function getSessionsInfo() {
     type: item.type,
     username: item.username,
     room: item.room,
+    createdBy: item.createdBy,
     startedAt: item.startedAt,
     joined: item.joined,
     roomId: item.roomId,
     lastError: item.lastError,
+    restore: item.restore,
   }));
 }

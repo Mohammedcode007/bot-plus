@@ -580,4 +580,28 @@ export class WsClient {
       },
     );
   }
+    updateProfileStatus(statusText) {
+    const text = String(statusText || '').trim();
+
+    if (!text) {
+      console.log(`❌ [${this.label}] empty profile status`);
+      return false;
+    }
+
+    return this.send(
+      {
+        /*
+          هاندلر تحديث البروفايل في الباك.
+          إذا كان عندك في WS_HANDLERS اسم مختلف، غيّر هذا السطر فقط.
+        */
+        handler: 'users.profile.update',
+
+        status_message: text,
+        statusMessage: text,
+      },
+      {
+        debugName: 'PROFILE_STATUS_UPDATE',
+      },
+    );
+  }
 }

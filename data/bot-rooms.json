@@ -1,18 +1,70 @@
 {
-  "controlled": {},
-  "music": {
-    "𝑴𝒆𝒓𝒄𝒊𝒍𝒆𝒔𝒔⛧": {
-      "username": "music_dj",
-      "password": "12345678_",
-      "room": "𝑴𝒆𝒓𝒄𝒊𝒍𝒆𝒔𝒔⛧",
-      "type": "music",
+  "controlled": {
+    "مصر": {
+      "username": "controller_bot",
+      "password": "12345678",
+      "room": "مصر",
+      "type": "controlled",
       "createdBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
-      "createdAt": "2026-07-03T20:54:52.932Z",
-      "joined": true,
-      "joinedAt": "2026-07-03T20:54:53.591Z",
-      "roomId": "room_d2e78ceb-33d4-412f-8066-1a93669b2415",
+      "createdAt": "2026-07-04T06:12:03.512Z",
+      "joined": false,
+      "joinedAt": "",
+      "roomId": "",
       "lastError": ""
     }
   },
-  "silent": {}
+  "music": {
+    "مصر": {
+      "username": "music_dj",
+      "password": "12345678_",
+      "room": "مصر",
+      "type": "music",
+      "createdBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+      "createdAt": "2026-07-04T06:11:26.333Z",
+      "joined": true,
+      "joinedAt": "2026-07-04T07:03:50.146Z",
+      "roomId": "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e",
+      "lastError": ""
+    }
+  },
+  "silent": {
+    "مصر": [
+      {
+        "username": "ahmed",
+        "password": "123456",
+        "room": "مصر",
+        "type": "silent",
+        "createdBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+        "createdAt": "2026-07-04T06:14:23.958Z",
+        "joined": false,
+        "joinedAt": "",
+        "roomId": "",
+        "lastError": ""
+      },
+      {
+        "username": "ahmed",
+        "password": "123456",
+        "room": "مصر",
+        "type": "silent",
+        "createdBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+        "createdAt": "2026-07-04T06:30:27.463Z",
+        "joined": false,
+        "joinedAt": "",
+        "roomId": "",
+        "lastError": ""
+      },
+      {
+        "username": "ahmed",
+        "password": "123456",
+        "room": "مصر",
+        "type": "silent",
+        "createdBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+        "createdAt": "2026-07-04T06:30:31.597Z",
+        "joined": false,
+        "joinedAt": "",
+        "roomId": "",
+        "lastError": ""
+      }
+    ]
+  }
 }
