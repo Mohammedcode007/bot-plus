@@ -1,6 +1,5 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import fs from 'fs';
 
 import {
   downloadAudioToLocal,
@@ -59,17 +58,31 @@ export async function searchYoutubeFirstResult(query) {
 
   const env = {
     ...process.env,
-    PATH: process.env.PATH || '',
+    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
   };
 
   /*
-    بدون cookies نهائيًا
+    بدون cookies نهائيًا.
+    يبحث عن أول نتيجة فقط.
   */
   const args = [
     '--no-update',
+
+    '--js-runtimes',
+    'deno',
+
+    '--extractor-args',
+    'youtube:player_client=android,web',
+
     '--dump-single-json',
     '--skip-download',
     '--no-playlist',
+
+    '--socket-timeout',
+    '30',
+    '--retries',
+    '3',
+
     `ytsearch1:${q}`,
   ];
 
@@ -136,12 +149,14 @@ export async function searchYoutubeFirstResult(query) {
       duration: item.duration || 0,
     };
   } catch (error) {
+    const errText =
+      error?.stderr ||
+      error?.message ||
+      'yt-dlp search failed';
+
     return {
       ok: false,
-      error:
-        error?.stderr ||
-        error?.message ||
-        'yt-dlp search failed',
+      error: errText,
     };
   }
 }

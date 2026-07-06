@@ -71,8 +71,8 @@ async function getAudioDurationMs(filePath) {
   }
 }
 
-export async function downloadAudioToLocal(params) {
-  const sourceUrl = params?.sourceUrl;
+export async function downloadAudioToLocal(params = {}) {
+  const sourceUrl = params.sourceUrl;
 
   if (!sourceUrl) {
     throw new Error('sourceUrl is required');
@@ -85,14 +85,24 @@ export async function downloadAudioToLocal(params) {
 
   const env = {
     ...process.env,
-    PATH: process.env.PATH || '',
+    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
   };
 
   /*
-    بدون cookies نهائيًا
+    بدون cookies نهائيًا.
+    yt-dlp سيحاول تحميل أفضل صوت وتحويله إلى mp3.
   */
   const args = [
     '--no-update',
+
+    '--js-runtimes',
+    'deno',
+
+    '--extractor-args',
+    'youtube:player_client=android,web',
+
+    '-f',
+    'bestaudio/best',
 
     '--extract-audio',
     '--audio-format',
@@ -127,7 +137,7 @@ export async function downloadAudioToLocal(params) {
       {
         env,
         windowsHide: true,
-        maxBuffer: 1024 * 1024 * 20,
+        maxBuffer: 1024 * 1024 * 30,
         timeout: Number(process.env.YT_DLP_TIMEOUT_MS || 180000),
       },
     );
