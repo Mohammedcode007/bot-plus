@@ -4,7 +4,96 @@ import {
 
 const musicCooldownMap = new Map();
 const songsStore = new Map();
+/*
+  منع تنفيذ نفس رسالة الميوزك أكثر من مرة.
+  لأن نفس الرسالة قد يقرأها music bot و controller bot معًا.
+*/
+const handledMusicMessages = new Map();
+const HANDLED_MESSAGE_TTL_MS = 60 * 1000;
 
+const activeMusicUsers = new Set();
+
+function getMusicMessageKey(roomMessage) {
+  const raw = roomMessage?.raw || {};
+
+  const messageId =
+    clean(raw.messageId) ||
+    clean(raw.id) ||
+    clean(raw._id);
+
+  if (messageId) {
+    return `id:${messageId}`;
+  }
+
+  return [
+    clean(roomMessage.roomId),
+    clean(roomMessage.roomName),
+    clean(roomMessage.fromUserId),
+    clean(roomMessage.fromUsername),
+    clean(roomMessage.text),
+    clean(raw.createdAt),
+  ].join('|');
+}
+
+function isDuplicateMusicMessage(roomMessage) {
+  const key = getMusicMessageKey(roomMessage);
+
+  if (!key) {
+    return false;
+  }
+
+  const now = Date.now();
+
+  for (const [oldKey, time] of handledMusicMessages.entries()) {
+    if (now - time > HANDLED_MESSAGE_TTL_MS) {
+      handledMusicMessages.delete(oldKey);
+    }
+  }
+
+  if (handledMusicMessages.has(key)) {
+    return true;
+  }
+
+  handledMusicMessages.set(key, now);
+
+  return false;
+}
+
+function getMusicUserKey(roomMessage) {
+  return (
+    clean(roomMessage.fromUserId) ||
+    clean(roomMessage.fromUsername) ||
+    'unknown'
+  ).toLowerCase();
+}
+
+function isMusicUserBusy(roomMessage) {
+  const key = getMusicUserKey(roomMessage);
+
+  if (!key) {
+    return false;
+  }
+
+  return activeMusicUsers.has(key);
+}
+
+function setMusicUserBusy(roomMessage) {
+  const key = getMusicUserKey(roomMessage);
+
+  if (!key) {
+    return '';
+  }
+
+  activeMusicUsers.add(key);
+
+  return key;
+}
+
+function clearMusicUserBusy(key) {
+  if (key) {
+    activeMusicUsers.delete(key);
+  }
+}
 function clean(value) {
   return String(value || '').trim();
 }
@@ -1126,25 +1215,66 @@ async function handleControllerMusicCommand({
     return false;
   }
 
+  /*
+    مهم جدًا:
+    يمنع نفس أمر الميوزك أن يتنفذ مرتين.
+    هذا يحل مشكلة ظهور Please wait 30s من أول مرة.
+  */
+  if (isDuplicateMusicMessage(roomMessage)) {
+    return true;
+  }
+
+  /*
+    اللايك والتعليق والترتيب لا يدخلوا في busy/cooldown.
+  */
+  if (
+    parsed.type !== 'like' &&
+    parsed.type !== 'comment' &&
+    parsed.type !== 'likes'
+  ) {
+    if (isMusicUserBusy(roomMessage)) {
+      sendRoomTextSafe(
+        ws,
+        targetRoomId,
+        targetRoomName,
+        '⏳ الأغنية السابقة ما زالت قيد التجهيز.',
+      );
+
+      return true;
+    }
+  }
+
   if (parsed.type === 'current') {
-    return handleCurrentSong({
-      roomMessage,
-      ws,
-      targetRoomId,
-      targetRoomName,
-      parsed,
-    });
+    const busyKey = setMusicUserBusy(roomMessage);
+
+    try {
+      return await handleCurrentSong({
+        roomMessage,
+        ws,
+        targetRoomId,
+        targetRoomName,
+        parsed,
+      });
+    } finally {
+      clearMusicUserBusy(busyKey);
+    }
   }
 
   if (parsed.type === 'broadcast') {
-    return handleBroadcastSong({
-      roomMessage,
-      ws,
-      runtime,
-      targetRoomId,
-      targetRoomName,
-      parsed,
-    });
+    const busyKey = setMusicUserBusy(roomMessage);
+
+    try {
+      return await handleBroadcastSong({
+        roomMessage,
+        ws,
+        runtime,
+        targetRoomId,
+        targetRoomName,
+        parsed,
+      });
+    } finally {
+      clearMusicUserBusy(busyKey);
+    }
   }
 
   if (parsed.type === 'like') {
@@ -1177,7 +1307,6 @@ async function handleControllerMusicCommand({
 
   return false;
 }
-
 export async function handleMusicRoomCommand({
   data,
   ws,
