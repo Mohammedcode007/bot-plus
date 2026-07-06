@@ -452,7 +452,17 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
 
   if (typeof socket.sendRoomMessage === 'function') {
     try {
-      socket.sendRoomMessage(roomId || roomName, text);
+      socket.sendRoomMessage(roomId, text, roomName);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomMessage(roomId, text, roomName) failed:',
+        error?.message || error,
+      );
+    }
+
+    try {
+      socket.sendRoomMessage(roomId, text);
       return true;
     } catch (error) {
       console.log(
@@ -474,13 +484,6 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
     return true;
   }
 
-  console.log('❌ [ROOM_TEXT_SEND_FAILED]', {
-    roomId,
-    roomName,
-    text,
-    socketKeys: socket ? Object.keys(socket) : [],
-  });
-
   return false;
 }
 
@@ -491,11 +494,21 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
 
   if (typeof socket.sendRoomAudioUrl === 'function') {
     try {
-      socket.sendRoomAudioUrl(roomId || roomName, url, roomName);
+      socket.sendRoomAudioUrl(roomId, url, roomName);
       return true;
     } catch (error) {
       console.log(
         '⚠️ sendRoomAudioUrl(roomId, url, roomName) failed:',
+        error?.message || error,
+      );
+    }
+
+    try {
+      socket.sendRoomAudioUrl(roomId, url);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomAudioUrl(roomId, url) failed:',
         error?.message || error,
       );
     }
@@ -1322,22 +1335,23 @@ export async function handleMusicRoomCommand({
     },
   );
 
-  const targetRoomId =
-    sessionInfo?.roomId ||
-    roomMessage.roomId ||
-    sessionInfo?.room ||
-    '';
+/*
+  مهم جدًا:
+  لازم نرسل في نفس الغرفة التي جاء منها الأمر.
+  لا نستخدم sessionInfo.roomId أولًا لأنه قد يكون غرفة أخرى محفوظة للبوت.
+*/
+const targetRoomId =
+  roomMessage.roomId ||
+  data?.roomId ||
+  sessionInfo?.roomId ||
+  '';
 
-  /*
-    مهم:
-    roomMessage.roomName أحيانًا يكون فارغًا.
-    لذلك نأخذ اسم الغرفة من sessionInfo أولًا.
-  */
-  const targetRoomName =
-    sessionInfo?.roomName ||
-    sessionInfo?.room ||
-    roomMessage.roomName ||
-    '';
+const targetRoomName =
+  roomMessage.roomName ||
+  data?.roomName ||
+  sessionInfo?.roomName ||
+  sessionInfo?.room ||
+  '';
 
   if (isMusicHelpCommand(roomMessage.text)) {
     sendRoomTextSafe(
