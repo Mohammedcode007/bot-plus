@@ -450,55 +450,26 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
     return false;
   }
 
-  /*
-    الطريقة القديمة أولًا:
-    sendRoomMessage(text, roomName)
-  */
   if (typeof socket.sendRoomMessage === 'function') {
     try {
-      socket.sendRoomMessage(text, roomName || roomId);
+      socket.sendRoomMessage(roomId || roomName, text);
       return true;
     } catch (error) {
       console.log(
-        '⚠️ sendRoomMessage(text, roomName) failed:',
-        error?.message || error,
-      );
-    }
-
-    try {
-      socket.sendRoomMessage(text);
-      return true;
-    } catch (error) {
-      console.log(
-        '⚠️ sendRoomMessage(text) failed:',
-        error?.message || error,
-      );
-    }
-
-    /*
-      احتياطي للنسخ التي تدعم:
-      sendRoomMessage(roomId, text, roomName)
-    */
-    try {
-      socket.sendRoomMessage(roomId, text, roomName);
-      return true;
-    } catch (error) {
-      console.log(
-        '⚠️ sendRoomMessage(roomId, text, roomName) failed:',
+        '⚠️ sendRoomMessage(roomId, text) failed:',
         error?.message || error,
       );
     }
   }
 
   if (typeof socket.send === 'function') {
-    socket.send(
-      JSON.stringify({
-        handler: 'room.message',
-        roomId,
-        roomName,
-        text,
-      }),
-    );
+    socket.send({
+      handler: 'room.message.send',
+      roomId: String(roomId || '').trim(),
+      roomName: String(roomName || '').trim(),
+      type: 'text',
+      text: String(text || ''),
+    });
 
     return true;
   }
@@ -518,37 +489,9 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
     return false;
   }
 
-  /*
-    الطريقة القديمة أولًا:
-    sendRoomAudioUrl(url, roomName)
-  */
   if (typeof socket.sendRoomAudioUrl === 'function') {
     try {
-      socket.sendRoomAudioUrl(url, roomName || roomId);
-      return true;
-    } catch (error) {
-      console.log(
-        '⚠️ sendRoomAudioUrl(url, roomName) failed:',
-        error?.message || error,
-      );
-    }
-
-    try {
-      socket.sendRoomAudioUrl(url);
-      return true;
-    } catch (error) {
-      console.log(
-        '⚠️ sendRoomAudioUrl(url) failed:',
-        error?.message || error,
-      );
-    }
-
-    /*
-      احتياطي للنسخ التي تدعم:
-      sendRoomAudioUrl(roomId, url, roomName)
-    */
-    try {
-      socket.sendRoomAudioUrl(roomId, url, roomName);
+      socket.sendRoomAudioUrl(roomId || roomName, url, roomName);
       return true;
     } catch (error) {
       console.log(
@@ -556,40 +499,6 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
         error?.message || error,
       );
     }
-  }
-
-  if (socket.socket && typeof socket.socket.sendRoomAudioUrl === 'function') {
-    try {
-      socket.socket.sendRoomAudioUrl(url, roomName || roomId);
-      return true;
-    } catch {}
-
-    try {
-      socket.socket.sendRoomAudioUrl(url);
-      return true;
-    } catch {}
-
-    try {
-      socket.socket.sendRoomAudioUrl(roomId, url, roomName);
-      return true;
-    } catch {}
-  }
-
-  if (socket.client && typeof socket.client.sendRoomAudioUrl === 'function') {
-    try {
-      socket.client.sendRoomAudioUrl(url, roomName || roomId);
-      return true;
-    } catch {}
-
-    try {
-      socket.client.sendRoomAudioUrl(url);
-      return true;
-    } catch {}
-
-    try {
-      socket.client.sendRoomAudioUrl(roomId, url, roomName);
-      return true;
-    } catch {}
   }
 
   console.log('❌ [MUSIC_AUDIO_SEND_FAILED]', {

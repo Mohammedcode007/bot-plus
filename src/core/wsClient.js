@@ -619,21 +619,83 @@ export class WsClient {
       },
     );
   }
+sendRoomMessage(roomId, text, roomName = '') {
+  const finalRoomId = String(roomId || this.roomId || '').trim();
+  const finalRoomName = String(roomName || this.roomName || '').trim();
+  const finalText = String(text || '').trim();
 
-  sendRoomMessage(room, text) {
-    return this.send(
-      {
-        handler: 'room.message.send',
-        roomId: String(room || '').trim(),
-        roomName: String(room || '').trim(),
-        type: 'text',
-        text: String(text || ''),
-      },
-      {
-        debugName: 'ROOM_MESSAGE_SEND',
-      },
-    );
+  if (!finalRoomId || !finalText) {
+    console.log(`❌ [${this.label}] ROOM_MESSAGE_SEND_EMPTY_DATA`, {
+      roomId: finalRoomId,
+      roomName: finalRoomName,
+      text: finalText,
+    });
+
+    return false;
   }
+
+  return this.send(
+    {
+      handler: 'room.message.send',
+      roomId: finalRoomId,
+      roomName: finalRoomName,
+      type: 'text',
+      text: finalText,
+    },
+    {
+      debugName: 'ROOM_MESSAGE_SEND',
+    },
+  );
+}
+sendRoomAudioUrl(roomId, audioUrl, roomName = '') {
+  const finalRoomId = String(roomId || this.roomId || '').trim();
+  const finalRoomName = String(roomName || this.roomName || '').trim();
+  const finalUrl = String(audioUrl || '').trim();
+
+  if (!finalRoomId || !finalUrl) {
+    console.log(`❌ [${this.label}] ROOM_AUDIO_SEND_EMPTY_DATA`, {
+      roomId: finalRoomId,
+      roomName: finalRoomName,
+      audioUrl: finalUrl,
+    });
+
+    return false;
+  }
+
+  return this.send(
+    {
+      handler: 'room.message.send',
+      roomId: finalRoomId,
+      roomName: finalRoomName,
+      messageKind: 'user',
+      type: 'audio',
+      media: {
+        url: finalUrl,
+        type: 'audio',
+      },
+      audioUrl: finalUrl,
+      url: finalUrl,
+      text: '',
+    },
+    {
+      debugName: 'ROOM_AUDIO_SEND',
+    },
+  );
+}
+  // sendRoomMessage(room, text) {
+  //   return this.send(
+  //     {
+  //       handler: 'room.message.send',
+  //       roomId: String(room || '').trim(),
+  //       roomName: String(room || '').trim(),
+  //       type: 'text',
+  //       text: String(text || ''),
+  //     },
+  //     {
+  //       debugName: 'ROOM_MESSAGE_SEND',
+  //     },
+  //   );
+  // }
     updateProfileStatus(statusText) {
     const text = String(statusText || '').trim();
 
