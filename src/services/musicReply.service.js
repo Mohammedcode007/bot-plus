@@ -1,6 +1,5 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import path from 'path';
 import fs from 'fs';
 
 import {
@@ -48,14 +47,6 @@ function makeSafeFileName(value) {
     .slice(0, 120);
 }
 
-function fileExists(filePath) {
-  try {
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
-
 export async function searchYoutubeFirstResult(query) {
   const q = normalizeText(query);
 
@@ -66,40 +57,29 @@ export async function searchYoutubeFirstResult(query) {
     };
   }
 
-  const cookiesPath =
-    process.env.YT_DLP_COOKIES_PATH ||
-    process.env.YTDLP_COOKIES_PATH ||
-    path.join(process.cwd(), 'cookies.txt');
-
   const env = {
     ...process.env,
-    PATH: `${process.env.PATH || ''}`,
+    PATH: process.env.PATH || '',
   };
 
+  /*
+    بدون cookies نهائيًا
+  */
   const args = [
-    '--cookies',
-    cookiesPath,
-
+    '--no-update',
     '--dump-single-json',
     '--skip-download',
     '--no-playlist',
-
     `ytsearch1:${q}`,
   ];
 
-  const finalArgs = fileExists(cookiesPath)
-    ? args
-    : args.filter((item, index) => {
-      return item !== '--cookies' && args[index - 1] !== '--cookies';
-    });
-
   try {
     console.log('🔎 yt-dlp search query:', q);
-    console.log('🔎 yt-dlp search args:', finalArgs);
+    console.log('🔎 yt-dlp search args:', args);
 
     const { stdout, stderr } = await execFileAsync(
       'yt-dlp',
-      finalArgs,
+      args,
       {
         env,
         windowsHide: true,
@@ -240,7 +220,7 @@ export async function buildMusicReply(rawText, extra = {}) {
         filename: saved.filename,
         durationMs: saved.durationMs || 0,
         expiresInMs: saved.expiresInMs,
-        provider: 'yt_dlp_search',
+        provider: 'yt_dlp_search_no_cookies',
 
         requestedBy: extra.requestedBy || '',
         roomName: extra.roomName || '',

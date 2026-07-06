@@ -32,14 +32,6 @@ function buildBaseUrl() {
   return String(raw).replace(/\/+$/, '');
 }
 
-function fileExists(filePath) {
-  try {
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
-
 async function getAudioDurationMs(filePath) {
   try {
     const { stdout, stderr } = await execFileAsync(
@@ -91,17 +83,17 @@ export async function downloadAudioToLocal(params) {
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const outputTemplate = path.join(AUDIO_TEMP_DIR, `${fileId}.%(ext)s`);
 
-  const cookiesPath =
-    process.env.YT_DLP_COOKIES_PATH ||
-    process.env.YTDLP_COOKIES_PATH ||
-    path.join(process.cwd(), 'cookies.txt');
-
   const env = {
     ...process.env,
     PATH: process.env.PATH || '',
   };
 
+  /*
+    بدون cookies نهائيًا
+  */
   const args = [
+    '--no-update',
+
     '--extract-audio',
     '--audio-format',
     'mp3',
@@ -124,16 +116,8 @@ export async function downloadAudioToLocal(params) {
     sourceUrl,
   ];
 
-  if (fileExists(cookiesPath)) {
-    args.unshift(
-      '--cookies',
-      cookiesPath,
-    );
-  }
-
   console.log('🎧 yt-dlp sourceUrl:', sourceUrl);
   console.log('🎧 yt-dlp outputTemplate:', outputTemplate);
-  console.log('🎧 yt-dlp cookiesPath:', fileExists(cookiesPath) ? cookiesPath : 'not_found');
   console.log('🎧 yt-dlp args:', args);
 
   try {
