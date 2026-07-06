@@ -4,6 +4,7 @@ import {
 
 const musicCooldownMap = new Map();
 const songsStore = new Map();
+
 /*
   منع تنفيذ نفس رسالة الميوزك أكثر من مرة.
   لأن نفس الرسالة قد يقرأها music bot و controller bot معًا.
@@ -11,7 +12,24 @@ const songsStore = new Map();
 const handledMusicMessages = new Map();
 const HANDLED_MESSAGE_TTL_MS = 60 * 1000;
 
+/*
+  منع تشغيل أغنيتين لنفس المستخدم في نفس اللحظة.
+*/
 const activeMusicUsers = new Set();
+
+function clean(value) {
+  return String(value || '').trim();
+}
+
+function normalizeCommand(value) {
+  return clean(value)
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 function getMusicMessageKey(roomMessage) {
   const raw = roomMessage?.raw || {};
@@ -93,19 +111,6 @@ function clearMusicUserBusy(key) {
   if (key) {
     activeMusicUsers.delete(key);
   }
-}
-function clean(value) {
-  return String(value || '').trim();
-}
-
-function normalizeCommand(value) {
-  return clean(value)
-    .toLowerCase()
-    .replace(/\s+/g, '');
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function getSenderName(roomMessage) {
@@ -197,15 +202,17 @@ function isBotMusicStatusMessage(text) {
   const value = clean(text);
 
   return (
+    value.startsWith('Loading:') ||
     value.startsWith('تعذر تشغيل الأغنية') ||
     value.startsWith('تعذر العثور على الأغنية') ||
     value.startsWith('تم العثور على:') ||
     value.startsWith('🎵 تم تجهيز الأغنية') ||
-    value.startsWith('Loading:') ||
     value.startsWith('Song failed') ||
     value.startsWith('Failed to find song') ||
     value.startsWith('Could not play this song') ||
-    value.startsWith('But failed to prepare')
+    value.startsWith('But failed to prepare') ||
+    value.includes('لكن تعذر تجهيز ملف الصوت الآن') ||
+    value.includes('تم تجهيز الأغنية لكن فشل إرسال ملف الصوت')
   );
 }
 
@@ -443,21 +450,44 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
     return false;
   }
 
+  /*
+    الطريقة القديمة أولًا:
+    sendRoomMessage(text, roomName)
+  */
   if (typeof socket.sendRoomMessage === 'function') {
     try {
-      socket.sendRoomMessage(roomId, text, roomName);
+      socket.sendRoomMessage(text, roomName || roomId);
       return true;
-    } catch {}
-
-    try {
-      socket.sendRoomMessage(text, roomName);
-      return true;
-    } catch {}
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomMessage(text, roomName) failed:',
+        error?.message || error,
+      );
+    }
 
     try {
       socket.sendRoomMessage(text);
       return true;
-    } catch {}
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomMessage(text) failed:',
+        error?.message || error,
+      );
+    }
+
+    /*
+      احتياطي للنسخ التي تدعم:
+      sendRoomMessage(roomId, text, roomName)
+    */
+    try {
+      socket.sendRoomMessage(roomId, text, roomName);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomMessage(roomId, text, roomName) failed:',
+        error?.message || error,
+      );
+    }
   }
 
   if (typeof socket.send === 'function') {
@@ -473,6 +503,13 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
     return true;
   }
 
+  console.log('❌ [ROOM_TEXT_SEND_FAILED]', {
+    roomId,
+    roomName,
+    text,
+    socketKeys: socket ? Object.keys(socket) : [],
+  });
+
   return false;
 }
 
@@ -481,31 +518,49 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
     return false;
   }
 
+  /*
+    الطريقة القديمة أولًا:
+    sendRoomAudioUrl(url, roomName)
+  */
   if (typeof socket.sendRoomAudioUrl === 'function') {
     try {
-      socket.sendRoomAudioUrl(roomId, url, roomName);
+      socket.sendRoomAudioUrl(url, roomName || roomId);
       return true;
-    } catch {}
-
-    try {
-      socket.sendRoomAudioUrl(url, roomName);
-      return true;
-    } catch {}
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomAudioUrl(url, roomName) failed:',
+        error?.message || error,
+      );
+    }
 
     try {
       socket.sendRoomAudioUrl(url);
       return true;
-    } catch {}
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomAudioUrl(url) failed:',
+        error?.message || error,
+      );
+    }
+
+    /*
+      احتياطي للنسخ التي تدعم:
+      sendRoomAudioUrl(roomId, url, roomName)
+    */
+    try {
+      socket.sendRoomAudioUrl(roomId, url, roomName);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ sendRoomAudioUrl(roomId, url, roomName) failed:',
+        error?.message || error,
+      );
+    }
   }
 
   if (socket.socket && typeof socket.socket.sendRoomAudioUrl === 'function') {
     try {
-      socket.socket.sendRoomAudioUrl(roomId, url, roomName);
-      return true;
-    } catch {}
-
-    try {
-      socket.socket.sendRoomAudioUrl(url, roomName);
+      socket.socket.sendRoomAudioUrl(url, roomName || roomId);
       return true;
     } catch {}
 
@@ -513,21 +568,26 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
       socket.socket.sendRoomAudioUrl(url);
       return true;
     } catch {}
+
+    try {
+      socket.socket.sendRoomAudioUrl(roomId, url, roomName);
+      return true;
+    } catch {}
   }
 
   if (socket.client && typeof socket.client.sendRoomAudioUrl === 'function') {
     try {
-      socket.client.sendRoomAudioUrl(roomId, url, roomName);
-      return true;
-    } catch {}
-
-    try {
-      socket.client.sendRoomAudioUrl(url, roomName);
+      socket.client.sendRoomAudioUrl(url, roomName || roomId);
       return true;
     } catch {}
 
     try {
       socket.client.sendRoomAudioUrl(url);
+      return true;
+    } catch {}
+
+    try {
+      socket.client.sendRoomAudioUrl(roomId, url, roomName);
       return true;
     } catch {}
   }
@@ -768,6 +828,12 @@ async function prepareSong({
   }
 
   if (result.success === false) {
+    console.log('❌ [MUSIC_RESULT_FAILED]', {
+      text: result.text,
+      error: result.error,
+      meta: result.meta,
+    });
+
     return {
       ok: false,
       error: result.text || result.error || 'Song failed.',
@@ -1218,7 +1284,6 @@ async function handleControllerMusicCommand({
   /*
     مهم جدًا:
     يمنع نفس أمر الميوزك أن يتنفذ مرتين.
-    هذا يحل مشكلة ظهور Please wait 30s من أول مرة.
   */
   if (isDuplicateMusicMessage(roomMessage)) {
     return true;
@@ -1307,6 +1372,7 @@ async function handleControllerMusicCommand({
 
   return false;
 }
+
 export async function handleMusicRoomCommand({
   data,
   ws,
@@ -1353,10 +1419,15 @@ export async function handleMusicRoomCommand({
     sessionInfo?.room ||
     '';
 
+  /*
+    مهم:
+    roomMessage.roomName أحيانًا يكون فارغًا.
+    لذلك نأخذ اسم الغرفة من sessionInfo أولًا.
+  */
   const targetRoomName =
-    roomMessage.roomName ||
     sessionInfo?.roomName ||
     sessionInfo?.room ||
+    roomMessage.roomName ||
     '';
 
   if (isMusicHelpCommand(roomMessage.text)) {

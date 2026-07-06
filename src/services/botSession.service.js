@@ -79,7 +79,51 @@ function buildRuntimeFromSessions() {
 function clean(value) {
   return String(value || '').trim();
 }
+function isMusicBotUsername(username) {
+  const value = clean(username).toLowerCase();
 
+  return (
+    value === 'music_dj' ||
+    value === clean(ENV.MUSIC_BOT_USERNAME).toLowerCase()
+  );
+}
+
+function isMusicBotStatusMessage(text) {
+  const value = clean(text);
+
+  return (
+    value.startsWith('Loading:') ||
+    value.startsWith('تعذر تشغيل الأغنية') ||
+    value.startsWith('تعذر العثور على الأغنية') ||
+    value.startsWith('تم العثور على:') ||
+    value.startsWith('🎵 تم تجهيز الأغنية') ||
+    value.startsWith('Song failed') ||
+    value.startsWith('Failed to find song') ||
+    value.startsWith('Could not play this song') ||
+    value.includes('لكن تعذر تجهيز ملف الصوت الآن') ||
+    value.includes('تم تجهيز الأغنية لكن فشل إرسال ملف الصوت')
+  );
+}
+
+function shouldIgnoreMusicBotMessage(data) {
+  if (
+    !data ||
+    data.handler !== 'room.message' ||
+    data.type !== 'message' ||
+    !data.message
+  ) {
+    return false;
+  }
+
+  const message = data.message;
+  const fromUsername = clean(message.fromUsername);
+  const text = clean(message.text);
+
+  return (
+    isMusicBotUsername(fromUsername) &&
+    isMusicBotStatusMessage(text)
+  );
+}
 function sessionKey(type, username, room) {
   return `${clean(type)}:${clean(username).toLowerCase()}:${clean(room)}`;
 }
@@ -413,31 +457,43 @@ export function startBotSession({
       sessionInfo,
     });
 
-    if (botType === 'controlled') {
+if (botType === 'controlled') {
+  /*
+    مهم:
+    لا تجعل controller bot يقرأ رسائل music_dj مثل:
+    Loading
+    تم العثور على...
+    تعذر تشغيل الأغنية...
+    كأنها أوامر.
+  */
+  if (shouldIgnoreMusicBotMessage(data)) {
+    return;
+  }
+
   const handled = await handleControlledRoomCommand({
-  data,
-  ws,
-  sessionInfo,
-  runtime: buildRuntimeFromSessions(),
-});
+    data,
+    ws,
+    sessionInfo,
+    runtime: buildRuntimeFromSessions(),
+  });
 
-      if (handled) {
-        return;
-      }
-    }
+  if (handled) {
+    return;
+  }
+}
 
-    if (botType === 'music') {
-const handled = await handleMusicRoomCommand({
-  data,
-  ws,
-  sessionInfo,
-  runtime: buildRuntimeFromSessions(),
-});
+   if (botType === 'music') {
+  const handled = await handleMusicRoomCommand({
+    data,
+    ws,
+    sessionInfo,
+    runtime: buildRuntimeFromSessions(),
+  });
 
-      if (handled) {
-        return;
-      }
-    }
+  if (handled) {
+    return;
+  }
+}
   });
 
   client.connect();
