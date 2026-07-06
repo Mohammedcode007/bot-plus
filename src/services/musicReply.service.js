@@ -1,47 +1,49 @@
-const fs = require("fs");
-const path = require("path");
-const { execFile } = require("child_process");
-const { promisify } = require("util");
+import fs from 'fs';
+import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
-const { downloadAudioToLocal } = require("./audioDownload.service");
+import {
+  downloadAudioToLocal,
+} from './audioDownload.service.js';
 
 const execFileAsync = promisify(execFile);
 
-function normalizeText(value) {
-  return String(value || "").trim();
+export function normalizeText(value) {
+  return String(value || '').trim();
 }
 
-function parsePlayCommand(raw) {
+export function parsePlayCommand(raw) {
   const text = normalizeText(raw);
   const lower = text.toLowerCase();
 
-  if (lower.startsWith("play ")) {
+  if (lower.startsWith('play ')) {
     return {
       matched: true,
-      query: text.slice("play ".length).trim(),
-      lang: "en",
+      query: text.slice('play '.length).trim(),
+      lang: 'en',
     };
   }
 
-  if (text.startsWith("تشغيل ")) {
+  if (text.startsWith('تشغيل ')) {
     return {
       matched: true,
-      query: text.slice("تشغيل ".length).trim(),
-      lang: "ar",
+      query: text.slice('تشغيل '.length).trim(),
+      lang: 'ar',
     };
   }
 
   return {
     matched: false,
-    query: "",
-    lang: "ar",
+    query: '',
+    lang: 'ar',
   };
 }
 
 function makeSafeFileName(value) {
-  return String(value || "audio")
-    .replace(/[\\/:*?"<>|]/g, "")
-    .replace(/\s+/g, " ")
+  return String(value || 'audio')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 120);
 }
@@ -54,24 +56,20 @@ function fileExists(filePath) {
   }
 }
 
-/*
-  جلب أول نتيجة من YouTube عن طريق yt-dlp بدون YouTube API.
-  ترجع اسم الفيديو الحقيقي + رابط الفيديو.
-*/
-async function searchYoutubeFirstResult(query) {
+export async function searchYoutubeFirstResult(query) {
   const q = normalizeText(query);
 
   if (!q) {
     return {
       ok: false,
-      error: "Empty search query",
+      error: 'Empty search query',
     };
   }
 
   const cookiesPath =
     process.env.YT_DLP_COOKIES_PATH ||
     process.env.YTDLP_COOKIES_PATH ||
-    path.join(process.cwd(), "cookies.txt");
+    path.join(process.cwd(), 'cookies.txt');
 
   if (!fileExists(cookiesPath)) {
     return {
@@ -82,48 +80,52 @@ async function searchYoutubeFirstResult(query) {
 
   const env = {
     ...process.env,
-    PATH: `/root/.deno/bin:${process.env.PATH || ""}`,
+    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
   };
 
   const args = [
-    "--cookies",
+    '--cookies',
     cookiesPath,
 
-    "--js-runtimes",
-    "deno",
+    '--js-runtimes',
+    'deno',
 
-    "--extractor-args",
-    "youtube:player_client=web",
+    '--extractor-args',
+    'youtube:player_client=web',
 
-    "--dump-single-json",
-    "--skip-download",
-    "--no-playlist",
+    '--dump-single-json',
+    '--skip-download',
+    '--no-playlist',
 
-    "--socket-timeout",
-    "30",
-    "--retries",
-    "3",
+    '--socket-timeout',
+    '30',
+    '--retries',
+    '3',
 
     `ytsearch1:${q}`,
   ];
 
   try {
-    console.log("🔎 yt-dlp search query:", q);
-    console.log("🍪 yt-dlp search cookiesPath:", cookiesPath);
-    console.log("🔎 yt-dlp search args:", args);
+    console.log('🔎 yt-dlp search query:', q);
+    console.log('🍪 yt-dlp search cookiesPath:', cookiesPath);
+    console.log('🔎 yt-dlp search args:', args);
 
-    const { stdout, stderr } = await execFileAsync("yt-dlp", args, {
-      env,
-      windowsHide: true,
-      maxBuffer: 1024 * 1024 * 20,
-      timeout: Number(process.env.YT_DLP_SEARCH_TIMEOUT_MS || 60000),
-    });
+    const { stdout, stderr } = await execFileAsync(
+      'yt-dlp',
+      args,
+      {
+        env,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024 * 20,
+        timeout: Number(process.env.YT_DLP_SEARCH_TIMEOUT_MS || 60000),
+      },
+    );
 
     if (stderr) {
-      console.log("🔎 yt-dlp search stderr:", stderr);
+      console.log('🔎 yt-dlp search stderr:', stderr);
     }
 
-    const data = JSON.parse(String(stdout || "{}"));
+    const data = JSON.parse(String(stdout || '{}'));
 
     const item =
       Array.isArray(data.entries) && data.entries.length
@@ -133,7 +135,7 @@ async function searchYoutubeFirstResult(query) {
     if (!item) {
       return {
         ok: false,
-        error: "No YouTube results found",
+        error: 'No YouTube results found',
       };
     }
 
@@ -142,12 +144,12 @@ async function searchYoutubeFirstResult(query) {
     const youtubeUrl =
       item.webpage_url ||
       item.original_url ||
-      (item.id ? `https://www.youtube.com/watch?v=${item.id}` : "");
+      (item.id ? `https://www.youtube.com/watch?v=${item.id}` : '');
 
     if (!youtubeUrl) {
       return {
         ok: false,
-        error: "YouTube URL not found",
+        error: 'YouTube URL not found',
       };
     }
 
@@ -155,27 +157,29 @@ async function searchYoutubeFirstResult(query) {
       ok: true,
       title,
       youtubeUrl,
-      videoId: item.id || "",
-      channelTitle: item.channel || item.uploader || "",
+      videoId: item.id || '',
+      channelTitle: item.channel || item.uploader || '',
       thumbnail:
         item.thumbnail ||
-        (Array.isArray(item.thumbnails) && item.thumbnails.length
-          ? item.thumbnails[item.thumbnails.length - 1].url
-          : ""),
+        (
+          Array.isArray(item.thumbnails) && item.thumbnails.length
+            ? item.thumbnails[item.thumbnails.length - 1].url
+            : ''
+        ),
       duration: item.duration || 0,
     };
   } catch (error) {
     return {
       ok: false,
       error:
-        (error && error.stderr) ||
-        (error && error.message) ||
-        "yt-dlp search failed",
+        error?.stderr ||
+        error?.message ||
+        'yt-dlp search failed',
     };
   }
 }
 
-async function buildMusicReply(rawText, extra = {}) {
+export async function buildMusicReply(rawText, extra = {}) {
   const parsed = parsePlayCommand(rawText);
 
   if (!parsed.matched) {
@@ -189,9 +193,9 @@ async function buildMusicReply(rawText, extra = {}) {
       handled: true,
       success: false,
       text:
-        parsed.lang === "ar"
-          ? "اكتب اسم الأغنية بعد الأمر"
-          : "Write the song name after the command",
+        parsed.lang === 'ar'
+          ? 'اكتب اسم الأغنية بعد الأمر'
+          : 'Write the song name after the command',
     };
   }
 
@@ -201,30 +205,25 @@ async function buildMusicReply(rawText, extra = {}) {
     return {
       handled: true,
       success: false,
-      /*
-        لا نرسل خطأ yt-dlp الطويل للمستخدم.
-        الخطأ محفوظ في meta.error للوج فقط.
-      */
       text:
-        parsed.lang === "ar"
-          ? "تعذر تشغيل الأغنية الآن. جرّب اسم أغنية آخر."
-          : "Could not play this song now. Try another song.",
+        parsed.lang === 'ar'
+          ? 'تعذر تشغيل الأغنية الآن. جرّب اسم أغنية آخر.'
+          : 'Could not play this song now. Try another song.',
       meta: {
-        action: "music_search_failed",
+        action: 'music_search_failed',
         query: parsed.query,
-        error: yt.error || "",
-        requestedBy: extra.requestedBy || "",
-        roomName: extra.roomName || "",
+        error: yt.error || '',
+        requestedBy: extra.requestedBy || '',
+        roomName: extra.roomName || '',
       },
     };
   }
 
   try {
-    const safeTitle = makeSafeFileName(yt.title || parsed.query || "audio");
+    const safeTitle = makeSafeFileName(
+      yt.title || parsed.query || 'audio',
+    );
 
-    /*
-      تحميل من رابط الفيديو الحقيقي.
-    */
     const saved = await downloadAudioToLocal({
       sourceUrl: yt.youtubeUrl,
       filename: `${safeTitle}.mp3`,
@@ -234,14 +233,14 @@ async function buildMusicReply(rawText, extra = {}) {
       handled: true,
       success: true,
       text: [
-        "🎵 تم تجهيز الأغنية",
+        '🎵 تم تجهيز الأغنية',
         `الاسم: ${yt.title || parsed.query}`,
-        `بواسطة: ${extra.requestedBy || "unknown"}`,
-        `الغرفة: ${extra.roomName || "unknown"}`,
+        `بواسطة: ${extra.requestedBy || 'unknown'}`,
+        `الغرفة: ${extra.roomName || 'unknown'}`,
         `الرابط: ${saved.publicUrl}`,
-      ].join("\n"),
+      ].join('\n'),
       meta: {
-        action: "music_mp3_ready",
+        action: 'music_mp3_ready',
         query: parsed.query,
 
         youtubeTitle: yt.title || parsed.query,
@@ -255,10 +254,10 @@ async function buildMusicReply(rawText, extra = {}) {
         filename: saved.filename,
         durationMs: saved.durationMs || 0,
         expiresInMs: saved.expiresInMs,
-        provider: "yt_dlp_search",
+        provider: 'yt_dlp_search',
 
-        requestedBy: extra.requestedBy || "",
-        roomName: extra.roomName || "",
+        requestedBy: extra.requestedBy || '',
+        roomName: extra.roomName || '',
       },
     };
   } catch (error) {
@@ -266,23 +265,16 @@ async function buildMusicReply(rawText, extra = {}) {
       handled: true,
       success: false,
       text:
-        parsed.lang === "ar"
+        parsed.lang === 'ar'
           ? `تم العثور على: ${yt.title}\nلكن تعذر تجهيز ملف الصوت الآن.`
           : `Found: ${yt.title}\nBut could not prepare the audio file now.`,
       meta: {
-        action: "music_prepare_failed",
+        action: 'music_prepare_failed',
         query: parsed.query,
         youtubeTitle: yt.title,
         youtubeUrl: yt.youtubeUrl,
-        error: error && error.message ? error.message : "unknown_error",
+        error: error?.message || 'unknown_error',
       },
     };
   }
 }
-
-module.exports = {
-  normalizeText,
-  parsePlayCommand,
-  searchYoutubeFirstResult,
-  buildMusicReply,
-};
