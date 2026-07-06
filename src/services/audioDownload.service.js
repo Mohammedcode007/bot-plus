@@ -34,14 +34,6 @@ function buildBaseUrl() {
   return String(raw).replace(/\/+$/, '');
 }
 
-function fileExists(filePath) {
-  try {
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
-
 async function getAudioDurationMs(filePath) {
   try {
     const { stdout, stderr } = await execFileAsync(
@@ -99,29 +91,23 @@ export async function downloadAudioToLocal(params = {}) {
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const outputTemplate = path.join(AUDIO_TEMP_DIR, `${fileId}.%(ext)s`);
 
-  const cookiesPath =
-    process.env.YT_DLP_COOKIES_PATH ||
-    process.env.YTDLP_COOKIES_PATH ||
-    path.join(process.cwd(), 'cookies.txt');
-
-  if (!fileExists(cookiesPath)) {
-    throw new Error(`cookies.txt not found at: ${cookiesPath}`);
-  }
-
   const env = {
     ...process.env,
     PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
   };
 
+  /*
+    تحميل بدون cookies نهائيًا.
+    لو YouTube رفض الفيديو، سيظهر الخطأ في اللوج.
+  */
   const args = [
-    '--cookies',
-    cookiesPath,
+    '--no-update',
 
     '--js-runtimes',
     'deno',
 
     '--extractor-args',
-    'youtube:player_client=web',
+    'youtube:player_client=android,web',
 
     '-f',
     'bestaudio/best',
@@ -150,7 +136,6 @@ export async function downloadAudioToLocal(params = {}) {
 
   console.log('🎧 yt-dlp sourceUrl:', sourceUrl);
   console.log('🎧 yt-dlp outputTemplate:', outputTemplate);
-  console.log('🍪 yt-dlp cookiesPath:', cookiesPath);
   console.log('🧠 yt-dlp PATH:', env.PATH);
   console.log('🎛️ yt-dlp args:', args);
 

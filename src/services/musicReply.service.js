@@ -1,13 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import yts from 'yt-search';
 
 import {
   downloadAudioToLocal,
 } from './audioDownload.service.js';
-
-const execFileAsync = promisify(execFile);
 
 export function normalizeText(value) {
   return String(value || '').trim();
@@ -48,14 +43,12 @@ function makeSafeFileName(value) {
     .slice(0, 120);
 }
 
-function fileExists(filePath) {
-  try {
-    return fs.existsSync(filePath);
-  } catch {
-    return false;
-  }
-}
-
+/*
+  البحث عن أول فيديو باستخدام مكتبة yt-search.
+  بدون cookies
+  بدون YouTube API
+  بدون yt-dlp في مرحلة البحث
+*/
 export async function searchYoutubeFirstResult(query) {
   const q = normalizeText(query);
 
@@ -66,115 +59,53 @@ export async function searchYoutubeFirstResult(query) {
     };
   }
 
-  const cookiesPath =
-    process.env.YT_DLP_COOKIES_PATH ||
-    process.env.YTDLP_COOKIES_PATH ||
-    path.join(process.cwd(), 'cookies.txt');
-
-  if (!fileExists(cookiesPath)) {
-    return {
-      ok: false,
-      error: `cookies.txt not found at: ${cookiesPath}`,
-    };
-  }
-
-  const env = {
-    ...process.env,
-    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
-  };
-
-  const args = [
-    '--cookies',
-    cookiesPath,
-
-    '--js-runtimes',
-    'deno',
-
-    '--extractor-args',
-    'youtube:player_client=web',
-
-    '--dump-single-json',
-    '--skip-download',
-    '--no-playlist',
-
-    '--socket-timeout',
-    '30',
-    '--retries',
-    '3',
-
-    `ytsearch1:${q}`,
-  ];
-
   try {
-    console.log('🔎 yt-dlp search query:', q);
-    console.log('🍪 yt-dlp search cookiesPath:', cookiesPath);
-    console.log('🔎 yt-dlp search args:', args);
+    console.log('🔎 yt-search query:', q);
 
-    const { stdout, stderr } = await execFileAsync(
-      'yt-dlp',
-      args,
-      {
-        env,
-        windowsHide: true,
-        maxBuffer: 1024 * 1024 * 20,
-        timeout: Number(process.env.YT_DLP_SEARCH_TIMEOUT_MS || 60000),
-      },
-    );
+    const result = await yts(q);
 
-    if (stderr) {
-      console.log('🔎 yt-dlp search stderr:', stderr);
-    }
+    const videos = Array.isArray(result?.videos)
+      ? result.videos
+      : [];
 
-    const data = JSON.parse(String(stdout || '{}'));
+    const firstVideo = videos.find((video) => {
+      return video && video.url && video.title;
+    });
 
-    const item =
-      Array.isArray(data.entries) && data.entries.length
-        ? data.entries[0]
-        : data;
-
-    if (!item) {
+    if (!firstVideo) {
       return {
         ok: false,
         error: 'No YouTube results found',
       };
     }
 
-    const title = String(item.title || q).trim();
-
-    const youtubeUrl =
-      item.webpage_url ||
-      item.original_url ||
-      (item.id ? `https://www.youtube.com/watch?v=${item.id}` : '');
-
-    if (!youtubeUrl) {
-      return {
-        ok: false,
-        error: 'YouTube URL not found',
-      };
-    }
-
     return {
       ok: true,
-      title,
-      youtubeUrl,
-      videoId: item.id || '',
-      channelTitle: item.channel || item.uploader || '',
+      title: firstVideo.title || q,
+      youtubeUrl: firstVideo.url,
+      videoId: firstVideo.videoId || '',
+      channelTitle:
+        firstVideo.author?.name ||
+        firstVideo.author ||
+        '',
       thumbnail:
-        item.thumbnail ||
-        (
-          Array.isArray(item.thumbnails) && item.thumbnails.length
-            ? item.thumbnails[item.thumbnails.length - 1].url
-            : ''
-        ),
-      duration: item.duration || 0,
+        firstVideo.thumbnail ||
+        firstVideo.image ||
+        '',
+      duration:
+        firstVideo.seconds ||
+        firstVideo.duration?.seconds ||
+        0,
+      provider: 'yt_search_library',
     };
   } catch (error) {
+    console.log('❌ yt-search failed:', error?.message || error);
+
     return {
       ok: false,
       error:
-        error?.stderr ||
         error?.message ||
-        'yt-dlp search failed',
+        'yt-search failed',
     };
   }
 }
@@ -207,8 +138,8 @@ export async function buildMusicReply(rawText, extra = {}) {
       success: false,
       text:
         parsed.lang === 'ar'
-          ? 'تعذر تشغيل الأغنية الآن. جرّب اسم أغنية آخر.'
-          : 'Could not play this song now. Try another song.',
+          ? 'تعذر العثور على نتيجة مناسبة.'
+          : 'Could not find a suitable result.',
       meta: {
         action: 'music_search_failed',
         query: parsed.query,
@@ -224,6 +155,10 @@ export async function buildMusicReply(rawText, extra = {}) {
       yt.title || parsed.query || 'audio',
     );
 
+    /*
+      هنا التحميل بدون cookies.
+      البحث تم بالمكتبة، والتحميل من رابط أول نتيجة.
+    */
     const saved = await downloadAudioToLocal({
       sourceUrl: yt.youtubeUrl,
       filename: `${safeTitle}.mp3`,
@@ -254,13 +189,21 @@ export async function buildMusicReply(rawText, extra = {}) {
         filename: saved.filename,
         durationMs: saved.durationMs || 0,
         expiresInMs: saved.expiresInMs,
-        provider: 'yt_dlp_search',
+
+        provider: 'yt_search_library_no_cookies',
 
         requestedBy: extra.requestedBy || '',
         roomName: extra.roomName || '',
       },
     };
   } catch (error) {
+    console.log('❌ [MUSIC_PREPARE_FAILED]', {
+      query: parsed.query,
+      youtubeTitle: yt.title,
+      youtubeUrl: yt.youtubeUrl,
+      error: error?.message || error,
+    });
+
     return {
       handled: true,
       success: false,
