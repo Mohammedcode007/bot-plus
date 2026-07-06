@@ -1,15 +1,59 @@
+
 import fs from 'fs/promises';
 import path from 'path';
 
 import {
   handleVipRoomCommand,
 } from './vipCommands.js';
+import {
+  handleInvestmentCommand,
+} from './investmentCommands.js';
 
+import {
+  handleLuckyCommand,
+} from './luckyCommands.js';
 import {
   handleVipUserRoomCommand,
 } from './vipUserCommands.js';
+import {
+  handleRoomModerationCommand,
+} from './roomModerationCommands.js';
+import { handleTopCommand } from './topCommands.js';
+import { handleBoxCommand } from './boxCommands.js';
+import { handleStealCommand } from './stealCommands.js';
+import { handleBetCommand } from './betCommands.js';
+import { handleFishCommand } from './fishCommands.js';
+import { handleMineCommand } from './mineCommands.js';
+import { handleBankCommand } from './bankCommands.js';
+import {
+  handlePrivateRelayCommand,
+} from './privateRelayCommands.js';
+import {
+  handleGameCommand,
+} from './gameCommands.js';
+import {
+  getSavedRoomUsers,
+  saveRoomUsersFromEvent,
+} from '../services/roomUsers.service.js';
+import {
+  handlePointsTransferCommand,
+} from './pointsTransferCommands.js';
 
-const ROOM_USERS_FILE = path.resolve('data/room-users.json');
+import {
+  handleOwnerGivePointsCommand,
+} from './ownerPointsCommands.js';
+import {
+  clean,
+  normalizeName,
+  normalizeCommand,
+} from '../utils/text.js';
+import {
+  handleWelcomeCommand,
+} from './welcomeCommands.js';
+
+import {
+  buildWelcomeMessageFromEvent,
+} from '../services/roomWelcome.service.js';
 const ROOM_MASTERS_FILE = path.resolve('data/room-masters.json');
 
 const PAGE_SIZE = 10;
@@ -17,22 +61,6 @@ const NEXT_TIMEOUT_MS = 30_000;
 
 const paginationSessions = new Map();
 const activePaginationByUser = new Map();
-
-function clean(value) {
-  return String(value || '').trim();
-}
-
-function normalizeName(value) {
-  return clean(value)
-    .normalize('NFC')
-    .toLowerCase();
-}
-
-function normalizeCommand(value) {
-  return clean(value)
-    .toLowerCase()
-    .replace(/\s+/g, '');
-}
 
 async function ensureJsonFile(filePath, defaultData) {
   try {
@@ -77,28 +105,6 @@ async function writeJsonFile(filePath, data) {
   );
 }
 
-async function readRoomUsersStore() {
-  const data = await readJsonFile(
-    ROOM_USERS_FILE,
-    {
-      rooms: {},
-    },
-  );
-
-  data.rooms ||= {};
-
-  return data;
-}
-
-async function writeRoomUsersStore(data) {
-  data.rooms ||= {};
-
-  await writeJsonFile(
-    ROOM_USERS_FILE,
-    data,
-  );
-}
-
 async function readRoomMastersStore() {
   const data = await readJsonFile(
     ROOM_MASTERS_FILE,
@@ -134,20 +140,6 @@ export function isRoomMessageEvent(data) {
   );
 }
 
-function isRoomUsersEvent(data) {
-  const handler = String(data?.handler || '');
-
-  return (
-    handler === 'room.join' ||
-    handler === 'room.leave' ||
-    handler === 'room.users' ||
-    handler === 'room.users_event' ||
-    handler === 'room_users_event' ||
-    handler === 'room.update' ||
-    handler === 'room_update_event'
-  );
-}
-
 export function readRoomMessage(data) {
   const message =
     data.message && typeof data.message === 'object'
@@ -156,47 +148,47 @@ export function readRoomMessage(data) {
 
   const text = clean(
     message.text ||
-      message.body ||
-      message.message ||
-      data.text ||
-      '',
+    message.body ||
+    message.message ||
+    data.text ||
+    '',
   );
 
   const roomId = clean(
     message.roomId ||
-      message.room_id ||
-      data.roomId ||
-      data.room_id ||
-      data.room?.roomId ||
-      '',
+    message.room_id ||
+    data.roomId ||
+    data.room_id ||
+    data.room?.roomId ||
+    '',
   );
 
   const roomName = clean(
     message.roomName ||
-      message.room_name ||
-      data.roomName ||
-      data.room_name ||
-      data.room?.name ||
-      '',
+    message.room_name ||
+    data.roomName ||
+    data.room_name ||
+    data.room?.name ||
+    '',
   );
 
   const fromUserId = clean(
     message.fromUserId ||
-      message.from_user_id ||
-      message.userId ||
-      message.user_id ||
-      data.fromUserId ||
-      data.from_user_id ||
-      '',
+    message.from_user_id ||
+    message.userId ||
+    message.user_id ||
+    data.fromUserId ||
+    data.from_user_id ||
+    '',
   );
 
   const fromUsername = clean(
     message.fromUsername ||
-      message.from_username ||
-      message.username ||
-      data.fromUsername ||
-      data.from_username ||
-      '',
+    message.from_username ||
+    message.username ||
+    data.fromUsername ||
+    data.from_username ||
+    '',
   );
 
   return {
@@ -209,32 +201,6 @@ export function readRoomMessage(data) {
   };
 }
 
-function extractRoomId(data, sessionInfo = {}) {
-  return clean(
-    data.roomId ||
-      data.room_id ||
-      data.room?.roomId ||
-      data.message?.roomId ||
-      data.message?.room_id ||
-      sessionInfo.roomId ||
-      sessionInfo.room ||
-      '',
-  );
-}
-
-function extractRoomName(data, sessionInfo = {}) {
-  return clean(
-    data.roomName ||
-      data.room_name ||
-      data.room?.name ||
-      data.room?.roomName ||
-      data.message?.roomName ||
-      data.message?.room_name ||
-      sessionInfo.room ||
-      '',
-  );
-}
-
 function getRoomStoreKey({
   roomId,
   roomName,
@@ -245,175 +211,6 @@ function getRoomStoreKey({
     clean(sessionInfo?.roomId) ||
     clean(sessionInfo?.room) ||
     'unknown_room';
-}
-
-function extractUsersArray(data) {
-  const possibleLists = [
-    data.activeUsers,
-    data.active_users,
-    data.users,
-    data.room?.activeUsers,
-    data.room?.active_users,
-    data.room?.users,
-    data.message?.activeUsers,
-    data.message?.active_users,
-    data.message?.users,
-  ];
-
-  for (const list of possibleLists) {
-    if (Array.isArray(list)) {
-      return list;
-    }
-  }
-
-  return [];
-}
-
-function normalizeUser(user) {
-  if (!user || typeof user !== 'object') {
-    return null;
-  }
-
-  const userId = clean(
-    user.userId ||
-      user.user_id ||
-      user.id ||
-      user._id ||
-      '',
-  );
-
-  const username = clean(
-    user.username ||
-      user.name ||
-      user.displayName ||
-      user.display_name ||
-      '',
-  );
-
-  if (!userId && !username) {
-    return null;
-  }
-
-  return {
-    userId,
-    username,
-    photoUrl: clean(
-      user.photoUrl ||
-        user.photo_url ||
-        user.avatar ||
-        '',
-    ),
-    role: clean(
-      user.role ||
-        user.roomRole ||
-        user.room_role ||
-        '',
-    ),
-    current: clean(user.current || ''),
-  };
-}
-
-function uniqueUsers(users) {
-  const map = new Map();
-
-  for (const user of users) {
-    const normalized = normalizeUser(user);
-
-    if (!normalized) {
-      continue;
-    }
-
-    const key =
-      normalized.userId ||
-      normalized.username.toLowerCase();
-
-    if (!map.has(key)) {
-      map.set(key, normalized);
-    }
-  }
-
-  return Array.from(map.values());
-}
-
-export async function saveRoomUsersFromEvent({
-  data,
-  sessionInfo,
-}) {
-  if (!isRoomUsersEvent(data)) {
-    return false;
-  }
-
-  const users = uniqueUsers(extractUsersArray(data));
-
-  if (users.length === 0) {
-    return false;
-  }
-
-  const roomId = extractRoomId(data, sessionInfo);
-  const roomName = extractRoomName(data, sessionInfo);
-
-  if (!roomId && !roomName) {
-    return false;
-  }
-
-  const key = getRoomStoreKey({
-    roomId,
-    roomName,
-    sessionInfo,
-  });
-
-  const store = await readRoomUsersStore();
-
-  store.rooms ||= {};
-
-  store.rooms[key] = {
-    roomId,
-    roomName,
-    users,
-    count: users.length,
-    updatedAt: new Date().toISOString(),
-  };
-
-  await writeRoomUsersStore(store);
-
-  console.log('💾 [ROOM_USERS_SAVED]', {
-    roomId,
-    roomName,
-    count: users.length,
-  });
-
-  return true;
-}
-
-async function getSavedRoomUsers({
-  roomId,
-  roomName,
-  sessionInfo,
-}) {
-  const store = await readRoomUsersStore();
-
-  const keys = [
-    clean(roomId),
-    clean(roomName),
-    clean(sessionInfo?.roomId),
-    clean(sessionInfo?.room),
-  ].filter(Boolean);
-
-  for (const key of keys) {
-    const room = store.rooms?.[key];
-
-    if (room && Array.isArray(room.users)) {
-      return {
-        room,
-        users: room.users,
-      };
-    }
-  }
-
-  return {
-    room: null,
-    users: [],
-  };
 }
 
 function getUserDisplayName(user, index) {
@@ -601,52 +398,313 @@ function shouldIgnoreOwnMessage({
   return fromUsername === currentBot;
 }
 
-function controlledHelpText() {
-  return [
-    '🤖 Controller Bot Commands',
-    '',
-    'help / help1 / help@1',
-    'Show help menu.',
-    '',
-    '.r',
-    'Show room users list.',
-    '',
-    '.nx',
-    'Next page within 30 seconds.',
-    '',
-    'mas@username',
-    'Add user to controller masters.',
-    '',
-    'unmas@username',
-    'Remove user from controller masters.',
-    '',
-    'l@mas',
-    'Show controller masters list.',
-    '',
-    'v@username',
-    'Verify user from room.',
-    '',
-    'unv@username',
-    'Remove user verification from room.',
-    '',
-    'vip@username',
-    'Add user as VIP.',
-    '',
-    'unvip@username',
-    'Remove user from VIP.',
-  ].join('\n');
+function controlledHelpText(page = 1) {
+  const pages = {
+    1: [
+      '🤖 Controller Bot Commands',
+      'Page 1/7',
+      '',
+      '📌 Help Pages',
+      '',
+      'help / help@1 / help1',
+      'Show this page.',
+      '',
+      'help@2 / help2',
+      'Room lists and private messages.',
+      '',
+      'help@3 / help3',
+      'Masters and permissions.',
+      '',
+      'help@4 / help4',
+      'Verification, VIP, and welcome.',
+      '',
+      'help@5 / help5',
+      'Room moderation commands.',
+      '',
+      'help@6 / help6',
+      'Points games.',
+      '',
+      'help@7 / help7',
+      'More games and bank.',
+    ],
+
+    2: [
+      '🤖 Controller Bot Commands',
+      'Page 2/7',
+      '',
+      '👥 Room Lists',
+      '',
+      '.r',
+      'Show saved room users list.',
+      '',
+      '.nx',
+      'Next page within 30 seconds.',
+      '',
+      '👑 Masters List',
+      '',
+      'l@mas',
+      'Show controller masters list.',
+      '',
+      '📩 Private Message',
+      '',
+      '@username message',
+      'Send private message to user by controller bot.',
+      '',
+      'Example:',
+      '@ahmed hello',
+    ],
+
+    3: [
+      '🤖 Controller Bot Commands',
+      'Page 3/7',
+      '',
+      '👑 Controller Masters',
+      '',
+      'mas@username',
+      'Add user to controller masters.',
+      '',
+      'unmas@username',
+      'Remove user from controller masters.',
+      '',
+      'l@mas',
+      'Show controller masters list.',
+      '',
+      'Note:',
+      'Master commands are for controller owner only.',
+      '',
+      'Masters can use allowed controller commands in the room.',
+    ],
+
+    4: [
+      '🤖 Controller Bot Commands',
+      'Page 4/7',
+      '',
+      '✅ Verification',
+      '',
+      'v@username',
+      'Verify user from room.',
+      '',
+      'unv@username',
+      'Remove user verification from room.',
+      '',
+      '⭐ VIP',
+      '',
+      'vip@username',
+      'Add user as VIP.',
+      '',
+      'unvip@username',
+      'Remove user from VIP.',
+      '',
+      '👋 Welcome',
+      '',
+      'wc@on',
+      'Turn welcome message on.',
+      '',
+      'wc@off',
+      'Turn welcome message off.',
+      '',
+      'wcmsg@Welcome $',
+      'Set welcome message.',
+      '',
+      '$',
+      'Will be replaced with joined username.',
+      '',
+      'wc@status',
+      'Show welcome settings.',
+    ],
+
+    5: [
+      '🤖 Controller Bot Commands',
+      'Page 5/7',
+      '',
+      '🛡️ Room Moderation',
+      '',
+      'o@username',
+      'Set user as owner.',
+      '',
+      '.o username',
+      'Set user as owner.',
+      '',
+      'a@username',
+      'Set user as admin.',
+      '',
+      '.a username',
+      'Set user as admin.',
+      '',
+      'm@username',
+      'Set user as member.',
+      '',
+      '.m username',
+      'Set user as member.',
+      '',
+      'b@username',
+      'Ban user from room.',
+      '',
+      '.b username',
+      'Ban user from room.',
+      '',
+      'k@username',
+      'Kick user from room.',
+      '',
+      '.k username',
+      'Kick user from room.',
+    ],
+
+    6: [
+      '🤖 Controller Bot Commands',
+      'Page 6/7',
+      '',
+      '🎮 Points Games',
+      '',
+      '.s',
+      'Spin game. Win points, gift, grand prize, or nothing.',
+      '',
+      '.cc',
+      'Show your current points.',
+      '',
+      'lucky',
+      'Try your luck in English. Win, lose, or nothing.',
+      '',
+      'حظ',
+      'جرب حظك بالعربي. تكسب أو تخسر أو لا يحدث شيء.',
+      '',
+      'invest@100',
+      'Invest 100 points in English. Win or lose.',
+      '',
+      'invest 100',
+      'Same investment command.',
+      '',
+      'استثمار@100',
+      'استثمار 100 نقطة بالعربي. مكسب أو خسارة.',
+      '',
+      'استثمار 100',
+      'نفس أمر الاستثمار.',
+      '',
+      'top',
+      'Show top 10 users by points.',
+      '',
+      'توب',
+      'عرض أكثر 10 مستخدمين نقاطًا.',
+    ],
+
+    7: [
+      '🤖 Controller Bot Commands',
+      'Page 7/7',
+      '',
+      '🎁 More Games',
+      '',
+      'box',
+      'Open a mystery box in English.',
+      '',
+      'صندوق',
+      'افتح صندوقًا عشوائيًا بالعربي.',
+      '',
+      'steal@username',
+      'Try to steal points from user.',
+      '',
+      'steal @username',
+      'Same steal command.',
+      '',
+      'سرقة@username',
+      'حاول سرقة نقاط من مستخدم.',
+      '',
+      'سرقة @username',
+      'نفس أمر السرقة.',
+      '',
+      'bet@username@100',
+      'Bet 100 points against user.',
+      '',
+      'bet @username 100',
+      'Same bet command.',
+      '',
+      'رهان@username@100',
+      'راهن ضد مستخدم على 100 نقطة.',
+      '',
+      'رهان @username 100',
+      'نفس أمر الرهان.',
+      '',
+      'fish',
+      'Go fishing in English.',
+      '',
+      'صيد',
+      'ابدأ الصيد بالعربي.',
+      '',
+      'mine',
+      'Start mining in English.',
+      '',
+      'تعدين',
+      'ابدأ التعدين بالعربي.',
+      '',
+      'bank 100',
+      'Deposit 100 points in bank.',
+      '',
+      'بنك 100',
+      'إيداع 100 نقطة في البنك.',
+      '',
+      'bank',
+      'Show your bank deposits.',
+      '',
+      'بنك',
+      'عرض ودائعك في البنك.',
+      '',
+      'bank withdraw',
+      'Withdraw ready bank deposits.',
+      '',
+      'بنك سحب',
+      'سحب الودائع الجاهزة.',
+    ],
+    8: [
+      '🤖 Controller Bot Commands',
+      'Page 8/8',
+ '💸 Points Transfer',
+'',
+'send@username@100',
+'Send points to another user.',
+'',
+'تحويل@username@100',
+'تحويل نقاط إلى مستخدم آخر.',
+
+    ],
+  };
+
+  const safePage = pages[page] ? page : 1;
+
+  return pages[safePage].join('\n');
 }
 
-function isHelpCommand(text) {
+function parseHelpCommand(text) {
   const command = normalizeCommand(text);
 
-  return (
-    command === 'help' ||
-    command === 'help1' ||
-    command === 'help@1'
-  );
-}
+  if (command === 'help') {
+    return {
+      isHelp: true,
+      page: 1,
+    };
+  }
 
+  const atMatch = command.match(/^help@(\d+)$/);
+
+  if (atMatch) {
+    return {
+      isHelp: true,
+      page: Number(atMatch[1]) || 1,
+    };
+  }
+
+  const compactMatch = command.match(/^help(\d+)$/);
+
+  if (compactMatch) {
+    return {
+      isHelp: true,
+      page: Number(compactMatch[1]) || 1,
+    };
+  }
+
+  return {
+    isHelp: false,
+    page: 1,
+  };
+}
 function isUsersListCommand(text) {
   return normalizeCommand(text) === '.r';
 }
@@ -1061,6 +1119,18 @@ export async function handleControlledRoomCommand({
   ws,
   sessionInfo,
 }) {
+  const welcomeResult = await buildWelcomeMessageFromEvent({
+    data,
+    sessionInfo,
+  });
+
+  if (welcomeResult.ok) {
+    ws.sendRoomMessage(
+      welcomeResult.roomId,
+      welcomeResult.text,
+      welcomeResult.roomName,
+    );
+  }
   await saveRoomUsersFromEvent({
     data,
     sessionInfo,
@@ -1093,7 +1163,28 @@ export async function handleControlledRoomCommand({
   const targetRoomName =
     roomMessage.roomName ||
     sessionInfo.room;
+const ownerGivePointsHandled = await handleOwnerGivePointsCommand({
+  roomMessage,
+  ws,
+  sessionInfo,
+  targetRoomId,
+  targetRoomName,
+});
 
+if (ownerGivePointsHandled) {
+  return true;
+}
+
+const pointsTransferHandled = await handlePointsTransferCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (pointsTransferHandled) {
+  return true;
+}
   console.log(
     `📥 [controlled:${sessionInfo.username}] ROOM_COMMAND`,
     {
@@ -1105,6 +1196,135 @@ export async function handleControlledRoomCommand({
       createdBy: sessionInfo.createdBy,
     },
   );
+
+  const welcomeHandled = await handleWelcomeCommand({
+    roomMessage,
+    ws,
+    sessionInfo,
+    targetRoomId,
+    targetRoomName,
+  });
+
+  if (welcomeHandled) {
+    return true;
+  }
+  const moderationHandled = await handleRoomModerationCommand({
+    roomMessage,
+    ws,
+    sessionInfo,
+    targetRoomId,
+    targetRoomName,
+  });
+  const gameHandled = await handleGameCommand({
+    roomMessage,
+    ws,
+    targetRoomId,
+    targetRoomName,
+  });
+
+  if (gameHandled) {
+    return true;
+  }
+  if (moderationHandled) {
+    return true;
+  }
+  const topHandled = await handleTopCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (topHandled) return true;
+
+const boxHandled = await handleBoxCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (boxHandled) return true;
+
+const stealHandled = await handleStealCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (stealHandled) return true;
+
+const betHandled = await handleBetCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (betHandled) return true;
+
+const fishHandled = await handleFishCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (fishHandled) return true;
+
+const mineHandled = await handleMineCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (mineHandled) return true;
+
+const bankHandled = await handleBankCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (bankHandled) return true;
+  const luckyHandled = await handleLuckyCommand({
+    roomMessage,
+    ws,
+    targetRoomId,
+    targetRoomName,
+  });
+
+  if (luckyHandled) {
+    return true;
+  }
+  const investmentHandled = await handleInvestmentCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (investmentHandled) {
+  return true;
+}
+  /*
+    إرسال خاص من الغرفة:
+    @username message
+  */
+  const privateRelayHandled = await handlePrivateRelayCommand({
+    roomMessage,
+    ws,
+    sessionInfo,
+    targetRoomId,
+    targetRoomName,
+  });
+
+  if (privateRelayHandled) {
+    return true;
+  }
 
   /*
     VIP user:
@@ -1154,10 +1374,12 @@ export async function handleControlledRoomCommand({
     return true;
   }
 
-  if (isHelpCommand(roomMessage.text)) {
+  const helpCommand = parseHelpCommand(roomMessage.text);
+
+  if (helpCommand.isHelp) {
     ws.sendRoomMessage(
       targetRoomId,
-      controlledHelpText(),
+      controlledHelpText(helpCommand.page),
       targetRoomName,
     );
 

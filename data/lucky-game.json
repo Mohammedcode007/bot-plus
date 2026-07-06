@@ -1,0 +1,34 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+
+  "winChance": 30,
+  "loseChance": 60,
+  "nothingChance": 10,
+
+  "minPercent": 5,
+  "maxPercent": 25,
+  "minChangePoints": 1,
+
+  "winPrizes": [
+    "🍀 Good Luck",
+    "💚 Lucky Clover",
+    "🌟 Lucky Star",
+    "💎 Lucky Diamond",
+    "👑 Lucky Crown"
+  ],
+
+  "losePrizes": [
+    "💔 Bad Luck",
+    "🌧️ Dark Cloud",
+    "🕳️ Black Hole",
+    "🧨 Bad Bomb",
+    "🥀 Broken Rose"
+  ],
+
+  "nothingPrizes": [
+    "😐 Nothing Happened",
+    "🍃 Empty Wind",
+    "🪶 Light Feather"
+  ]
+}

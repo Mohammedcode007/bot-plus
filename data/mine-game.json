@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+  "minPoints": 10,
+  "maxPoints": 200,
+  "pointChance": 50,
+  "itemChance": 30,
+  "loseChance": 15,
+  "nothingChance": 5,
+  "loseMinPercent": 5,
+  "loseMaxPercent": 25,
+  "items": [
+    "💎 Diamond",
+    "🪙 Gold",
+    "🪨 Rare Stone",
+    "🔮 Magic Ore",
+    "👑 Ancient Crown",
+    "🐉 Dragon Egg",
+    "🔥 Lava Crystal"
+  ],
+  "losePrizes": [
+    "🧟 Cave Monster",
+    "💥 Mine Explosion",
+    "🕳️ Deep Hole"
+  ],
+  "nothingPrize": "🪨 Stone"
+}

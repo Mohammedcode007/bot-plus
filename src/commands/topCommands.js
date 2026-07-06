@@ -1,0 +1,4 @@
+import { normalizeCommand } from '../utils/text.js';
+import { getTopPointsUsers } from '../services/gamePoints.service.js';
+function parseTopCommand(text){const c=normalizeCommand(text);if(c==='top')return{isCommand:true,lang:'en'};if(c==='توب')return{isCommand:true,lang:'ar'};return{isCommand:false,lang:'en'};}
+export async function handleTopCommand({roomMessage,ws,targetRoomId,targetRoomName}){const p=parseTopCommand(roomMessage.text);if(!p.isCommand)return false;const users=await getTopPointsUsers(10);if(users.length===0){ws.sendRoomMessage(targetRoomId,p.lang==='ar'?'🏆 لا توجد نقاط حتى الآن.':'🏆 No points yet.',targetRoomName);return true;}const lines=users.map((u,i)=>`${i===0?'🥇':i===1?'🥈':i===2?'🥉':`${i+1}.`} ${u.username} — ${u.points}`);ws.sendRoomMessage(targetRoomId,p.lang==='ar'?['🏆 أكثر 10 مستخدمين نقاطًا','',...lines].join('\n'):['🏆 Top 10 Points','',...lines].join('\n'),targetRoomName);return true;}

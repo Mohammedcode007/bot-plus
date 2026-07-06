@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+  "minBetPoints": 10,
+  "maxBetPoints": 1000000,
+  "creatorWinChance": 50,
+  "targetWinChance": 50
+}

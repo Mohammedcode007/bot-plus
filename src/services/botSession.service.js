@@ -10,15 +10,72 @@ import {
 
 import {
   handleControlledRoomCommand,
-  saveRoomUsersFromEvent,
 } from '../commands/roomCommands.js';
+
+import {
+  saveRoomUsersFromEvent,
+} from './roomUsers.service.js';
 
 import {
   handleMusicRoomCommand,
 } from '../commands/musicCommands.js';
 
 const sessions = new Map();
+function buildRuntimeFromSessions() {
+  const connections = new Map();
 
+  for (const session of sessions.values()) {
+    if (!session?.client) {
+      continue;
+    }
+
+    /*
+      مهم:
+      نضيف بيانات الغرفة على client نفسه
+      حتى controllerMusicCommands.js يعرف يرسل لكل غرفة.
+    */
+    session.client.roomName = session.room;
+    session.client.roomId = session.roomId || '';
+    session.client.bot = {
+      roomName: session.room,
+      room: session.room,
+      roomId: session.roomId || '',
+      username: session.username,
+      type: session.type,
+    };
+
+    if (session.type === 'music') {
+      connections.set(
+        `music:${session.room}`,
+        session.client,
+      );
+
+      continue;
+    }
+
+    if (session.type === 'controlled') {
+      connections.set(
+        `controller:${session.room}:${session.username}`,
+        session.client,
+      );
+
+      continue;
+    }
+
+    if (session.type === 'silent') {
+      connections.set(
+        `silent:${session.room}:${session.username}`,
+        session.client,
+      );
+    }
+  }
+
+  return {
+    registry: {
+      connections,
+    },
+  };
+}
 function clean(value) {
   return String(value || '').trim();
 }
@@ -357,11 +414,12 @@ export function startBotSession({
     });
 
     if (botType === 'controlled') {
-      const handled = await handleControlledRoomCommand({
-        data,
-        ws,
-        sessionInfo,
-      });
+  const handled = await handleControlledRoomCommand({
+  data,
+  ws,
+  sessionInfo,
+  runtime: buildRuntimeFromSessions(),
+});
 
       if (handled) {
         return;
@@ -369,11 +427,12 @@ export function startBotSession({
     }
 
     if (botType === 'music') {
-      const handled = await handleMusicRoomCommand({
-        data,
-        ws,
-        sessionInfo,
-      });
+const handled = await handleMusicRoomCommand({
+  data,
+  ws,
+  sessionInfo,
+  runtime: buildRuntimeFromSessions(),
+});
 
       if (handled) {
         return;

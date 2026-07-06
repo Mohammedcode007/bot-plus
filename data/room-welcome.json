@@ -1,0 +1,20 @@
+{
+  "rooms": {
+    "room_647921c5-390c-41f0-be9a-8b5b4a10c170": {
+      "roomId": "room_647921c5-390c-41f0-be9a-8b5b4a10c170",
+      "roomName": "egypt",
+      "enabled": true,
+      "message": "welcome &",
+      "updatedBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+      "updatedAt": "2026-07-06T07:26:15.192Z"
+    },
+    "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e": {
+      "roomId": "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e",
+      "roomName": "مصر",
+      "enabled": true,
+      "message": "Welcome $",
+      "updatedBy": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+      "updatedAt": "2026-07-06T07:26:58.378Z"
+    }
+  }
+}

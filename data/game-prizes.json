@@ -1,0 +1,49 @@
+{
+  "spin": {
+    "enabled": true,
+    "cooldownSeconds": 900,
+    "minPoints": 10,
+    "maxPoints": 100,
+    "pointChance": 70,
+    "itemChance": 20,
+    "grandChance": 5,
+    "nothingChance": 5,
+    "grandPoints": 1000,
+    "pointPrizes": [
+      "🎁 Lucky Gift",
+      "💎 Diamond Badge",
+      "👑 Royal Crown",
+      "🚀 Rocket Gift",
+      "🪙 Coin Treasure",
+      "🔥 Fire Chest",
+      "⭐ Star Box",
+      "🎟️ VIP Ticket"
+    ],
+    "items": [
+      "🐶 Pet Dog",
+      "🐱 Pet Cat",
+      "🦅 Golden Eagle",
+      "🐎 Royal Horse",
+      "🐉 Dragon",
+      "🦄 Unicorn",
+      "🚗 Sport Car",
+      "🏰 Castle",
+      "👑 Royal Crown",
+      "💎 Diamond Badge",
+      "🛡️ Legendary Shield",
+      "🔮 Magic Crystal",
+      "⚔️ Fantasy Sword",
+      "🔫 Laser Gun",
+      "🚀 Rocket",
+      "🛥️ Luxury Yacht",
+      "✈️ Private Jet",
+      "🏝️ Private Island",
+      "🎟️ VIP Ticket",
+      "🌍 Trip to Dubai",
+      "🌍 Trip to Turkey",
+      "🌍 Trip to Maldives",
+      "🌍 Trip to Morocco",
+      "🌍 Trip to Egypt"
+    ]
+  }
+}

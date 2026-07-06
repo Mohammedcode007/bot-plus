@@ -1,0 +1,9 @@
+import fs from 'fs/promises';
+import path from 'path';
+const STEAL_FILE = path.resolve('data/steal-game.json');
+function defaults(){return{enabled:true,cooldownSeconds:600,successChance:35,failChance:65,minStealPercent:5,maxStealPercent:20,minFailPenaltyPercent:5,maxFailPenaltyPercent:20,minChangePoints:1};}
+async function ensure(){try{await fs.mkdir(path.dirname(STEAL_FILE),{recursive:true});await fs.access(STEAL_FILE);}catch{await fs.writeFile(STEAL_FILE,JSON.stringify(defaults(),null,2),'utf8');}}
+export async function readStealSettings(){await ensure();try{const data=JSON.parse(await fs.readFile(STEAL_FILE,'utf8')||'{}');return data&&typeof data==='object'?{...defaults(),...data}:defaults();}catch{return defaults();}}
+function randomInt(min,max){const from=Math.min(Number(min)||0,Number(max)||0);const to=Math.max(Number(min)||0,Number(max)||0);return Math.floor(Math.random()*(to-from+1))+from;}
+export async function getStealCooldownSeconds(){const s=await readStealSettings();return Number(s.cooldownSeconds)||600;}
+export async function rollStealResult({thiefPoints,targetPoints}){const s=await readStealSettings();if(s.enabled!==true)return{ok:false,type:'disabled',points:0,percent:0,message:'Steal game is disabled.'};const success=Number(s.successChance)||35;const fail=Number(s.failChance)||65;const roll=Math.random()*Math.max(1,success+fail);const min=Math.max(1,Number(s.minChangePoints)||1);if(roll<success){const percent=randomInt(s.minStealPercent,s.maxStealPercent);const amount=Math.min(Math.max(0,Number(targetPoints)||0),Math.max(min,Math.floor(((Number(targetPoints)||0)*percent)/100)));return{ok:true,type:'success',points:amount,percent};}const percent=randomInt(s.minFailPenaltyPercent,s.maxFailPenaltyPercent);const amount=Math.min(Math.max(0,Number(thiefPoints)||0),Math.max(min,Math.floor(((Number(thiefPoints)||0)*percent)/100)));return{ok:true,type:'fail',points:-amount,percent};}

@@ -1,0 +1,11 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 600,
+  "successChance": 35,
+  "failChance": 65,
+  "minStealPercent": 5,
+  "maxStealPercent": 20,
+  "minFailPenaltyPercent": 5,
+  "maxFailPenaltyPercent": 20,
+  "minChangePoints": 1
+}

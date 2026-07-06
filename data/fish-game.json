@@ -1,0 +1,27 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+  "minPoints": 10,
+  "maxPoints": 180,
+  "pointChance": 45,
+  "itemChance": 35,
+  "loseChance": 10,
+  "nothingChance": 10,
+  "loseMinPercent": 5,
+  "loseMaxPercent": 25,
+  "items": [
+    "🐟 Fish",
+    "🐠 Golden Fish",
+    "🦈 Shark",
+    "🐙 Octopus",
+    "🧜 Mermaid",
+    "🦪 Pearl",
+    "🏴‍☠️ Treasure Chest"
+  ],
+  "losePrizes": [
+    "🦈 Angry Shark",
+    "🌊 Big Wave",
+    "🪝 Broken Hook"
+  ],
+  "nothingPrize": "🪸 Seaweed"
+}

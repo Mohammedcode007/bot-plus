@@ -1,0 +1,8 @@
+import fs from 'fs/promises';
+import path from 'path';
+const BET_FILE=path.resolve('data/bet-game.json');
+function defaults(){return{enabled:true,cooldownSeconds:300,minBetPoints:10,maxBetPoints:1000000,creatorWinChance:50,targetWinChance:50};}
+async function ensure(){try{await fs.mkdir(path.dirname(BET_FILE),{recursive:true});await fs.access(BET_FILE);}catch{await fs.writeFile(BET_FILE,JSON.stringify(defaults(),null,2),'utf8');}}
+export async function readBetSettings(){await ensure();try{const data=JSON.parse(await fs.readFile(BET_FILE,'utf8')||'{}');return data&&typeof data==='object'?{...defaults(),...data}:defaults();}catch{return defaults();}}
+export async function getBetCooldownSeconds(){const s=await readBetSettings();return Number(s.cooldownSeconds)||300;}
+export async function rollBetResult({amount,creatorPoints,targetPoints}){const s=await readBetSettings();if(s.enabled!==true)return{ok:false,type:'disabled',message:'Bet game is disabled.'};const a=Math.max(0,Math.floor(Number(amount)||0));const min=Math.max(1,Number(s.minBetPoints)||10);const max=Math.max(min,Number(s.maxBetPoints)||1000000);if(a<min)return{ok:false,type:'min_bet',message:`Minimum bet is ${min} points.`};if(a>max)return{ok:false,type:'max_bet',message:`Maximum bet is ${max} points.`};if((Number(creatorPoints)||0)<a)return{ok:false,type:'creator_not_enough_points',message:'You do not have enough points.'};if((Number(targetPoints)||0)<a)return{ok:false,type:'target_not_enough_points',message:'Target does not have enough points.'};const cw=Number(s.creatorWinChance)||50;const tw=Number(s.targetWinChance)||50;return{ok:true,type:'result',winner:Math.random()*Math.max(1,cw+tw)<cw?'creator':'target',amount:a};}

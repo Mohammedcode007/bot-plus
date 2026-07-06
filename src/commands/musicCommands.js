@@ -3,6 +3,10 @@ import {
   readRoomMessage,
 } from './roomCommands.js';
 
+import {
+  handleControllerMusicCommand,
+} from './controllerMusicCommands.js';
+
 function clean(value) {
   return String(value || '').trim();
 }
@@ -34,7 +38,35 @@ function musicHelpText() {
     'music help',
     'Show this help menu.',
     '',
-    'More music commands coming soon.',
+    '🎧 Play in current room',
+    '',
+    'play song name',
+    'Play song in current room.',
+    '',
+    'تشغيل اسم الأغنية',
+    'تشغيل أغنية في الغرفة الحالية.',
+    '',
+    '🌍 Send to all rooms',
+    '',
+    '.ps song name',
+    'Send song to all rooms.',
+    '',
+    '.so song name',
+    'Send song to all rooms.',
+    '',
+    '.sh song name',
+    'Send song to all rooms.',
+    '',
+    '❤️ Likes / Comments',
+    '',
+    'like@id',
+    'Like a song.',
+    '',
+    'com@id@message',
+    'Comment on a song.',
+    '',
+    'songlikes',
+    'Show top liked users.',
   ].join('\n');
 }
 
@@ -52,6 +84,7 @@ export async function handleMusicRoomCommand({
   data,
   ws,
   sessionInfo,
+  runtime,
 }) {
   if (!isRoomMessageEvent(data)) {
     return false;
@@ -83,22 +116,34 @@ export async function handleMusicRoomCommand({
     },
   );
 
+  const targetRoomId =
+    sessionInfo.roomId ||
+    roomMessage.roomId ||
+    sessionInfo.room;
+
+  const targetRoomName =
+    roomMessage.roomName ||
+    sessionInfo.room;
+
   if (isMusicHelpCommand(roomMessage.text)) {
-    const targetRoomId =
-      sessionInfo.roomId ||
-      roomMessage.roomId ||
-      sessionInfo.room;
-
-    const targetRoomName =
-      roomMessage.roomName ||
-      sessionInfo.room;
-
     ws.sendRoomMessage(
       targetRoomId,
       musicHelpText(),
       targetRoomName,
     );
 
+    return true;
+  }
+
+  const musicCommandHandled = await handleControllerMusicCommand({
+    roomMessage,
+    ws,
+    runtime,
+    targetRoomId,
+    targetRoomName,
+  });
+
+  if (musicCommandHandled) {
     return true;
   }
 

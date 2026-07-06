@@ -1,0 +1,32 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+
+  "winChance": 40,
+  "loseChance": 60,
+
+  "minInvestPoints": 10,
+  "maxInvestPoints": 1000000,
+
+  "minWinPercent": 20,
+  "maxWinPercent": 100,
+
+  "minLosePercent": 20,
+  "maxLosePercent": 100,
+
+  "winPrizes": [
+    "📈 Successful Investment",
+    "💹 Market Win",
+    "🏦 Bank Profit",
+    "💎 Smart Deal",
+    "🚀 Big Growth"
+  ],
+
+  "losePrizes": [
+    "📉 Failed Investment",
+    "💸 Market Loss",
+    "🏚️ Bad Deal",
+    "🔥 Risk Failed",
+    "🕳️ Money Trap"
+  ]
+}

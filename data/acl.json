@@ -6,8 +6,22 @@
       "username": "ahmed",
       "verified": true,
       "vip": false,
-      "points": 0,
-      "updatedAt": "2026-07-04T07:05:03.192Z"
+      "points": 150,
+      "updatedAt": "2026-07-06T09:09:39.587Z"
+    },
+    {
+      "username": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
+      "verified": true,
+      "vip": false,
+      "points": 79,
+      "updatedAt": "2026-07-06T09:09:39.583Z"
+    },
+    {
+      "username": "ajjj",
+      "verified": false,
+      "vip": false,
+      "points": 666,
+      "updatedAt": "2026-07-06T09:02:16.778Z"
     }
   ]
 }

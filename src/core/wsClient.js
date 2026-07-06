@@ -369,12 +369,41 @@ export class WsClient {
   }
 
   sendDm(toUserId, text) {
+    const target = String(toUserId || '').trim();
+    const body = String(text || '').trim();
+
+    if (!target || !body) {
+      console.log(`❌ [${this.label}] DM_SEND_FAILED_EMPTY_DATA`, {
+        target,
+        hasText: Boolean(body),
+      });
+
+      return false;
+    }
+
     return this.send(
       {
+        /*
+          الهاندلر الموجود عندك للخاص.
+          لو السيرفر عندك يستخدم اسمًا آخر غيّر هذا السطر فقط.
+        */
         handler: 'dm.send',
-        to_user_id: String(toUserId || '').trim(),
+
+        /*
+          نرسل أكثر من مفتاح لزيادة التوافق مع الباك.
+        */
+        to_user_id: target,
+        toUserId: target,
+        to_user: target,
+        toUser: target,
+        to_username: target,
+        toUsername: target,
+
+        messageKind: 'user',
         type: 'text',
-        text: String(text || ''),
+        text: body,
+        message: body,
+        body,
       },
       {
         debugName: 'DM_SEND',
@@ -382,6 +411,31 @@ export class WsClient {
     );
   }
 
+  /*
+    Alias متوافق مع dmRelay.service.js
+    يستخدم عندما يكتب المستخدم:
+    @username message
+  */
+  sendPrivateMessage(toUserIdOrUsername, text) {
+    return this.sendDm(
+      toUserIdOrUsername,
+      text,
+    );
+  }
+
+  /*
+    Alias آخر متوافق مع dmRelay.service.js
+  */
+  sendDmMessage({
+    toUserId,
+    toUsername,
+    text,
+  }) {
+    return this.sendDm(
+      String(toUserId || toUsername || '').trim(),
+      text,
+    );
+  }
   /*
     طلب قائمة الغرف.
   */

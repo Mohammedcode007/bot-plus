@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "cooldownSeconds": 300,
+  "minPoints": 10,
+  "maxPoints": 250,
+  "pointChance": 55,
+  "itemChance": 30,
+  "loseChance": 10,
+  "nothingChance": 5,
+  "loseMinPercent": 5,
+  "loseMaxPercent": 25,
+  "items": [
+    "📦 Golden Box",
+    "💎 Diamond Box",
+    "🐉 Dragon Box",
+    "👑 Royal Box",
+    "🚀 Rocket Box",
+    "🏝️ Island Box",
+    "🛡️ Shield Box",
+    "🔮 Magic Box"
+  ],
+  "losePrizes": [
+    "💣 Bomb Box",
+    "🕳️ Empty Trap",
+    "🔥 Burned Box"
+  ],
+  "nothingPrize": "📭 Empty Box"
+}
