@@ -1,3 +1,6 @@
+import express from 'express';
+import path from 'path';
+
 import { ENV } from './config/env.js';
 import { WsClient } from './core/wsClient.js';
 import { handlePrivateMessage } from './commands/privateCommands.js';
@@ -6,6 +9,32 @@ import {
   restoreSavedBotSessions,
   updateMainBotProfile,
 } from './services/botSession.service.js';
+
+const app = express();
+
+const HTTP_PORT = Number(
+  process.env.HTTP_PORT ||
+  process.env.PORT ||
+  5000,
+);
+
+app.use(
+  '/uploads',
+  express.static(path.join(process.cwd(), 'public', 'uploads')),
+);
+
+app.get('/', (req, res) => {
+  res.send('bot-plus is running');
+});
+
+app.listen(HTTP_PORT, '0.0.0.0', () => {
+  console.log(`🌐 HTTP server running on port ${HTTP_PORT}`);
+  console.log(
+    '📁 Uploads path:',
+    path.join(process.cwd(), 'public', 'uploads'),
+  );
+});
+
 function readText(...values) {
   for (const value of values) {
     const text = String(value || '').trim();
@@ -85,8 +114,6 @@ async function main() {
       return;
     }
 
-   
-
     await handlePrivateMessage({
       mainBot,
       fromUserId: dm.fromUserId,
@@ -103,16 +130,14 @@ async function main() {
     استرجاع البوتات والغرف المحفوظة بعد تشغيل البوت الرئيسي.
     الانتظار 3 ثواني حتى يأخذ البوت الرئيسي فرصة للاتصال وتسجيل الدخول.
   */
- setTimeout(async () => {
-  try {
-    const result = await restoreSavedBotSessions(mainBot);
+  setTimeout(async () => {
+    try {
+      const result = await restoreSavedBotSessions(mainBot);
 
-
-    updateMainBotProfile(mainBot);
-  } catch (error) {
-
-  }
-}, 3000);
+      updateMainBotProfile(mainBot);
+    } catch (error) {
+    }
+  }, 3000);
 }
 
 main().catch((error) => {
