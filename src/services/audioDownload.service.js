@@ -34,6 +34,40 @@ function buildBaseUrl() {
   return String(raw).replace(/\/+$/, '');
 }
 
+function fileExists(filePath) {
+  try {
+    return fs.existsSync(filePath);
+  } catch {
+    return false;
+  }
+}
+
+function getYtDlpBin() {
+  return process.env.YT_DLP_BIN || '/usr/local/bin/yt-dlp';
+}
+
+function makeYtDlpEnv() {
+  return {
+    ...process.env,
+    PATH: [
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+      '/root/.local/bin',
+      '/root/.deno/bin',
+      process.env.PATH || '',
+    ].join(':'),
+  };
+}
+
+function getCookiesPath() {
+  return (
+    process.env.YT_DLP_COOKIES_PATH ||
+    process.env.YTDLP_COOKIES_PATH ||
+    path.join(process.cwd(), 'cookies.txt')
+  );
+}
+
 async function getAudioDurationMs(filePath) {
   try {
     const { stdout, stderr } = await execFileAsync(
@@ -91,26 +125,37 @@ export async function downloadAudioToLocal(params = {}) {
   const fileId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const outputTemplate = path.join(AUDIO_TEMP_DIR, `${fileId}.%(ext)s`);
 
-  const env = {
-    ...process.env,
-    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
-  };
+  const cookiesPath = getCookiesPath();
+
+  if (!fileExists(cookiesPath)) {
+    throw new Error(`cookies.txt not found at: ${cookiesPath}`);
+  }
+
+  const env = makeYtDlpEnv();
 
   /*
-    تحميل بدون cookies نهائيًا.
-    لو YouTube رفض الفيديو، سيظهر الخطأ في اللوج.
+    تحميل باستخدام cookies.
+    هذا أفضل حل عند ظهور:
+    Sign in to confirm you’re not a bot
+    أو:
+    HTTP Error 429
   */
   const args = [
     '--no-update',
 
+    '--cookies',
+    cookiesPath,
+
     '--js-runtimes',
     'deno',
 
+    '--force-ipv4',
+
     '--extractor-args',
-    'youtube:player_client=android,web',
+    'youtube:player_client=android,web,ios',
 
     '-f',
-    'bestaudio/best',
+    'bestaudio[ext=m4a]/bestaudio/best',
 
     '--extract-audio',
     '--audio-format',
@@ -124,8 +169,15 @@ export async function downloadAudioToLocal(params = {}) {
     '--socket-timeout',
     '30',
     '--retries',
-    '3',
+    '5',
     '--fragment-retries',
+    '5',
+
+    '--sleep-requests',
+    '1',
+    '--sleep-interval',
+    '1',
+    '--max-sleep-interval',
     '3',
 
     '-o',
@@ -136,12 +188,14 @@ export async function downloadAudioToLocal(params = {}) {
 
   console.log('🎧 yt-dlp sourceUrl:', sourceUrl);
   console.log('🎧 yt-dlp outputTemplate:', outputTemplate);
+  console.log('🍪 yt-dlp cookiesPath:', cookiesPath);
+  console.log('🧠 yt-dlp bin:', getYtDlpBin());
   console.log('🧠 yt-dlp PATH:', env.PATH);
   console.log('🎛️ yt-dlp args:', args);
 
   try {
     const { stdout, stderr } = await execFileAsync(
-      'yt-dlp',
+      getYtDlpBin(),
       args,
       {
         env,
@@ -191,7 +245,9 @@ export async function downloadAudioToLocal(params = {}) {
   const absolutePath = path.join(AUDIO_TEMP_DIR, matched);
   const publicUrl = `${buildBaseUrl()}/uploads/audio-temp/${matched}`;
 
-
+  console.log('🎧 FINAL filename:', matched);
+  console.log('🎧 FINAL absolutePath:', absolutePath);
+  console.log('🎧 FINAL publicUrl:', publicUrl);
 
   const durationMs = await getAudioDurationMs(absolutePath);
 
@@ -200,7 +256,13 @@ export async function downloadAudioToLocal(params = {}) {
       ? durationMs + AUDIO_DELETE_EXTRA_MS
       : AUDIO_FALLBACK_TTL_MS;
 
-
+  console.log('🕒 Audio duration ms:', durationMs);
+  console.log('🕒 Audio delete extra ms:', AUDIO_DELETE_EXTRA_MS);
+  console.log('🕒 Audio will be deleted after ms:', expiresInMs);
+  console.log(
+    '🕒 Audio will be deleted after minutes:',
+    Math.ceil(expiresInMs / 60000),
+  );
 
   scheduleDeleteFile(
     absolutePath,
@@ -217,6 +279,8 @@ export async function downloadAudioToLocal(params = {}) {
 }
 
 export function scheduleDeleteFile(filePath, delayMs) {
+  const safeDelayMs = Number(delayMs);
+
   setTimeout(() => {
     fs.unlink(filePath, (err) => {
       if (err) {
@@ -231,7 +295,7 @@ export function scheduleDeleteFile(filePath, delayMs) {
 
       console.log('🗑️ Temp audio deleted:', filePath);
     });
-  }, delayMs);
+  }, Number.isFinite(safeDelayMs) && safeDelayMs > 0 ? safeDelayMs : AUDIO_FALLBACK_TTL_MS);
 }
 
 export function cleanupExpiredAudioFiles() {
