@@ -407,7 +407,9 @@ function getSongUrlFromResult(result) {
 }
 
 function makeSongId() {
-  return `song_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  return Math.random()
+    .toString(36)
+    .slice(2, 7);
 }
 
 function saveSong({
