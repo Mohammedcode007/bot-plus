@@ -1,8 +1,12 @@
 import yts from 'yt-search';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 
 import {
   downloadAudioToLocal,
 } from './audioDownload.service.js';
+
+const execFileAsync = promisify(execFile);
 
 export function normalizeText(value) {
   return String(value || '').trim();
@@ -43,12 +47,204 @@ function makeSafeFileName(value) {
     .slice(0, 120);
 }
 
+function makeYtDlpEnv() {
+  return {
+    ...process.env,
+    PATH: `/root/.deno/bin:${process.env.PATH || ''}`,
+  };
+}
+
+function normalizeYoutubeVideo(video, query, provider) {
+  if (!video) {
+    return null;
+  }
+
+  const videoId =
+    video?.videoId ||
+    video?.id ||
+    '';
+
+  const youtubeUrl =
+    video?.url ||
+    video?.webpage_url ||
+    video?.original_url ||
+    (videoId ? `https://www.youtube.com/watch?v=${videoId}` : '');
+
+  if (!youtubeUrl) {
+    return null;
+  }
+
+  const finalVideoId =
+    videoId ||
+    String(youtubeUrl).match(/[?&]v=([^&]+)/)?.[1] ||
+    '';
+
+  return {
+    ok: true,
+    title: video?.title || query,
+    youtubeUrl,
+    videoId: finalVideoId,
+    channelTitle:
+      video?.author?.name ||
+      video?.author ||
+      video?.channelTitle ||
+      video?.uploader ||
+      video?.channel ||
+      '',
+    thumbnail:
+      video?.thumbnail ||
+      video?.image ||
+      video?.thumbnails?.[video?.thumbnails.length - 1]?.url ||
+      (finalVideoId ? `https://i.ytimg.com/vi/${finalVideoId}/hqdefault.jpg` : ''),
+    duration:
+      video?.seconds ||
+      video?.duration?.seconds ||
+      video?.duration ||
+      0,
+    provider,
+  };
+}
+
 /*
-  البحث عن أول فيديو باستخدام مكتبة yt-search.
-  بدون cookies
-  بدون YouTube API
-  بدون yt-dlp في مرحلة البحث
+  البحث الأساسي: yt-search.
+  البحث الاحتياطي: yt-dlp ytsearch1 بدون cookies وبدون YouTube API.
 */
+async function searchByYtSearchLibrary(query) {
+  console.log('🔎 yt-search query:', query);
+
+  const result = await yts(query);
+
+  const videos = Array.isArray(result?.videos)
+    ? result.videos
+    : [];
+
+  const firstVideo = videos.find((video) => {
+    return video && (video.url || video.videoId) && video.title;
+  });
+
+  return normalizeYoutubeVideo(
+    firstVideo,
+    query,
+    'yt_search_library',
+  );
+}
+
+async function searchByYtDlpSearch(query) {
+  const env = makeYtDlpEnv();
+
+  const args = [
+    '--no-update',
+
+    '--js-runtimes',
+    'deno',
+
+    '--extractor-args',
+    'youtube:player_client=android,web',
+
+    '--no-playlist',
+    '--skip-download',
+
+    '--dump-single-json',
+
+    '--socket-timeout',
+    '30',
+
+    '--retries',
+    '2',
+
+    `ytsearch1:${query}`,
+  ];
+
+  console.log('🔎 yt-dlp search query:', query);
+  console.log('🎛️ yt-dlp search args:', args);
+
+  const { stdout, stderr } = await execFileAsync(
+    'yt-dlp',
+    args,
+    {
+      env,
+      windowsHide: true,
+      maxBuffer: 1024 * 1024 * 10,
+      timeout: Number(process.env.YT_DLP_SEARCH_TIMEOUT_MS || 90000),
+    },
+  );
+
+  if (stderr) {
+    console.log('🔎 yt-dlp search stderr:', stderr);
+  }
+
+  const raw = String(stdout || '').trim();
+
+  if (!raw) {
+    throw new Error('yt-dlp search returned empty stdout');
+  }
+
+  const json = JSON.parse(raw);
+
+  return normalizeYoutubeVideo(
+    json,
+    query,
+    'yt_dlp_search_no_cookies',
+  );
+}
+
+async function searchByYoutubeHtmlFallback(query) {
+  const searchUrl =
+    `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+
+  console.log('🔎 youtube html fallback:', searchUrl);
+
+  const response = await fetch(searchUrl, {
+    headers: {
+      'user-agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
+      'accept-language': 'en-US,en;q=0.9,ar;q=0.8',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`YouTube html status ${response.status}`);
+  }
+
+  const html = await response.text();
+
+  const videoIds = [
+    ...html.matchAll(/"videoId":"([^"]{11})"/g),
+  ]
+    .map((match) => match[1])
+    .filter(Boolean);
+
+  const uniqueVideoIds = Array.from(new Set(videoIds));
+  const videoId = uniqueVideoIds[0];
+
+  if (!videoId) {
+    return null;
+  }
+
+  let title = query;
+
+  const titleMatch = html.match(
+    new RegExp(`"videoId":"${videoId}"[\\s\\S]{0,2000}?"title":\\{"runs":\\[\\{"text":"([^"]+)"`)
+  );
+
+  if (titleMatch?.[1]) {
+    title = titleMatch[1]
+      .replace(/\\u0026/g, '&')
+      .replace(/\\"/g, '"');
+  }
+
+  return {
+    ok: true,
+    title,
+    youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    videoId,
+    channelTitle: '',
+    thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    duration: 0,
+    provider: 'youtube_html_fallback_no_cookies',
+  };
+}
+
 export async function searchYoutubeFirstResult(query) {
   const q = normalizeText(query);
 
@@ -59,55 +255,55 @@ export async function searchYoutubeFirstResult(query) {
     };
   }
 
+  const errors = [];
+
   try {
-    console.log('🔎 yt-search query:', q);
+    const result = await searchByYtSearchLibrary(q);
 
-    const result = await yts(q);
-
-    const videos = Array.isArray(result?.videos)
-      ? result.videos
-      : [];
-
-    const firstVideo = videos.find((video) => {
-      return video && video.url && video.title;
-    });
-
-    if (!firstVideo) {
-      return {
-        ok: false,
-        error: 'No YouTube results found',
-      };
+    if (result?.ok && result.youtubeUrl) {
+      return result;
     }
 
-    return {
-      ok: true,
-      title: firstVideo.title || q,
-      youtubeUrl: firstVideo.url,
-      videoId: firstVideo.videoId || '',
-      channelTitle:
-        firstVideo.author?.name ||
-        firstVideo.author ||
-        '',
-      thumbnail:
-        firstVideo.thumbnail ||
-        firstVideo.image ||
-        '',
-      duration:
-        firstVideo.seconds ||
-        firstVideo.duration?.seconds ||
-        0,
-      provider: 'yt_search_library',
-    };
+    errors.push('yt-search returned no valid video');
   } catch (error) {
-    console.log('❌ yt-search failed:', error?.message || error);
-
-    return {
-      ok: false,
-      error:
-        error?.message ||
-        'yt-search failed',
-    };
+    const message = error?.message || String(error);
+    console.log('❌ yt-search failed:', message);
+    errors.push(`yt-search: ${message}`);
   }
+
+  try {
+    const result = await searchByYtDlpSearch(q);
+
+    if (result?.ok && result.youtubeUrl) {
+      return result;
+    }
+
+    errors.push('yt-dlp search returned no valid video');
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.log('❌ yt-dlp search failed:', message);
+    console.log('❌ yt-dlp search stderr:', error?.stderr || '');
+    errors.push(`yt-dlp-search: ${error?.stderr || message}`);
+  }
+
+  try {
+    const result = await searchByYoutubeHtmlFallback(q);
+
+    if (result?.ok && result.youtubeUrl) {
+      return result;
+    }
+
+    errors.push('youtube html fallback returned no video');
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.log('❌ youtube html fallback failed:', message);
+    errors.push(`html-fallback: ${message}`);
+  }
+
+  return {
+    ok: false,
+    error: errors.join(' | ') || 'No YouTube results found',
+  };
 }
 
 export async function buildMusicReply(rawText, extra = {}) {
@@ -138,8 +334,8 @@ export async function buildMusicReply(rawText, extra = {}) {
       success: false,
       text:
         parsed.lang === 'ar'
-          ? 'تعذر العثور على نتيجة مناسبة.'
-          : 'Could not find a suitable result.',
+          ? `تعذر العثور على نتيجة مناسبة.\n${yt.error || ''}`.trim()
+          : `Could not find a suitable result.\n${yt.error || ''}`.trim(),
       meta: {
         action: 'music_search_failed',
         query: parsed.query,
@@ -155,10 +351,6 @@ export async function buildMusicReply(rawText, extra = {}) {
       yt.title || parsed.query || 'audio',
     );
 
-    /*
-      هنا التحميل بدون cookies.
-      البحث تم بالمكتبة، والتحميل من رابط أول نتيجة.
-    */
     const saved = await downloadAudioToLocal({
       sourceUrl: yt.youtubeUrl,
       filename: `${safeTitle}.mp3`,
@@ -190,7 +382,7 @@ export async function buildMusicReply(rawText, extra = {}) {
         durationMs: saved.durationMs || 0,
         expiresInMs: saved.expiresInMs,
 
-        provider: 'yt_search_library_no_cookies',
+        provider: yt.provider || 'unknown_no_cookies',
 
         requestedBy: extra.requestedBy || '',
         roomName: extra.roomName || '',
@@ -201,6 +393,7 @@ export async function buildMusicReply(rawText, extra = {}) {
       query: parsed.query,
       youtubeTitle: yt.title,
       youtubeUrl: yt.youtubeUrl,
+      provider: yt.provider,
       error: error?.message || error,
     });
 
@@ -216,6 +409,7 @@ export async function buildMusicReply(rawText, extra = {}) {
         query: parsed.query,
         youtubeTitle: yt.title,
         youtubeUrl: yt.youtubeUrl,
+        provider: yt.provider,
         error: error?.message || 'unknown_error',
       },
     };

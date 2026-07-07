@@ -140,17 +140,7 @@ export async function handlePrivateMessage({
 
   const createdBy = getSenderLabel(senderInfo);
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📩 [PRIVATE_COMMAND_HANDLER]', {
-    fromUserId,
-    fromUsername,
-    ownerUserId: getOwnerUserId(),
-    ownerUsername: getOwnerUsername(),
-    text,
-    parsed,
-  });
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
+ 
   if (parsed.command === 'help') {
     mainBot.sendDm(fromUserId, helpText());
     return;

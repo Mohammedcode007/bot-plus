@@ -191,9 +191,7 @@ export async function downloadAudioToLocal(params = {}) {
   const absolutePath = path.join(AUDIO_TEMP_DIR, matched);
   const publicUrl = `${buildBaseUrl()}/uploads/audio-temp/${matched}`;
 
-  console.log('🎧 FINAL filename:', matched);
-  console.log('🎧 FINAL absolutePath:', absolutePath);
-  console.log('🎧 FINAL publicUrl:', publicUrl);
+
 
   const durationMs = await getAudioDurationMs(absolutePath);
 
@@ -202,13 +200,7 @@ export async function downloadAudioToLocal(params = {}) {
       ? durationMs + AUDIO_DELETE_EXTRA_MS
       : AUDIO_FALLBACK_TTL_MS;
 
-  console.log('🕒 Audio duration ms:', durationMs);
-  console.log('🕒 Audio delete extra ms:', AUDIO_DELETE_EXTRA_MS);
-  console.log('🕒 Audio will be deleted after ms:', expiresInMs);
-  console.log(
-    '🕒 Audio will be deleted after minutes:',
-    Math.ceil(expiresInMs / 60000),
-  );
+
 
   scheduleDeleteFile(
     absolutePath,

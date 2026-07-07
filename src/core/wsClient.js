@@ -61,22 +61,13 @@ export class WsClient {
   }
 
   connect() {
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`🚀 [${this.label}] CONNECT_START`);
-    console.log(`🌐 [${this.label}] WS_URL:`, ENV.WS_URL);
-    console.log(`👤 [${this.label}] username:`, this.username);
-    console.log(`🔑 [${this.label}] password_length:`, clean(this.password).length);
-    console.log(`🧾 [${this.label}] BOT_SESSION:`, ENV.BOT_SESSION);
-    console.log(`🧩 [${this.label}] BOT_SDK:`, ENV.BOT_SDK, typeof ENV.BOT_SDK);
-    console.log(`📦 [${this.label}] BOT_VERSION:`, ENV.BOT_VERSION, typeof ENV.BOT_VERSION);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  
 
     this.ws = new WebSocket(ENV.WS_URL);
 
     this.ws.on('open', () => {
       this.connected = true;
 
-      console.log(`✅ [${this.label}] WS connected`);
 
       this.login();
       this.startPing();
@@ -85,29 +76,23 @@ export class WsClient {
     this.ws.on('message', (raw) => {
       const rawText = raw.toString();
 
-      console.log(`\n📥 [${this.label}] RAW_MESSAGE`);
-      console.log(rawText);
+
 
       let data;
 
       try {
         data = JSON.parse(rawText);
       } catch {
-        console.log(`⚠️ [${this.label}] invalid json`, rawText);
         return;
       }
 
-      console.log(`📦 [${this.label}] PARSED_MESSAGE`);
       console.dir(data, { depth: null, colors: true });
 
       this.handleMessage(data);
     });
 
     this.ws.on('close', (code, reason) => {
-      console.log(`❌ [${this.label}] WS closed`, {
-        code,
-        reason: reason?.toString?.() || '',
-      });
+   
 
       this.connected = false;
       this.loggedIn = false;
@@ -117,17 +102,13 @@ export class WsClient {
     });
 
     this.ws.on('error', (error) => {
-      console.log(`❌ [${this.label}] WS error`, {
-        message: error.message,
-        stack: error.stack,
-      });
+
     });
   }
 
   scheduleReconnect() {
     clearTimeout(this.reconnectTimer);
 
-    console.log(`🔁 [${this.label}] reconnect after`, ENV.RECONNECT_DELAY_MS);
 
     this.reconnectTimer = setTimeout(() => {
       this.connect();
@@ -158,7 +139,6 @@ export class WsClient {
 
   login() {
     if (!this.username || !this.password) {
-      console.log(`❌ [${this.label}] missing username or password`);
       return false;
     }
 
@@ -186,15 +166,7 @@ export class WsClient {
       id: String(ENV.BOT_ID || this.username || 'bot').trim(),
     };
 
-    console.log(`🔐 [${this.label}] LOGIN_PAYLOAD`, {
-      handler: payload.handler,
-      username: payload.username,
-      password: '***',
-      session: payload.session,
-      sdk: payload.sdk,
-      ver: payload.ver,
-      id: payload.id,
-    });
+ 
 
     return this.send(payload, {
       debugName: 'NORMAL_LOGIN',
@@ -206,42 +178,23 @@ export class WsClient {
     const handler = String(data.handler || '');
     const requestId = String(data.request_id || data.requestId || '');
 
-    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`📡 [${this.label}] SOCKET_EVENT`);
-    console.log(`🏷️ handler=`, handler);
-    console.log(`📌 type=`, data.type);
-    console.log(`❓ reason=`, data.reason);
-    console.log(`💬 message=`, data.message);
-    console.log(`🆔 request_id=`, requestId);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+
 
     if (requestId && this.pendingLoginRequests.has(requestId)) {
       const info = this.pendingLoginRequests.get(requestId);
 
-      console.log(`🔎 [${this.label}] MATCHED_LOGIN_RESPONSE`, {
-        requestId,
-        variant: info.debugName,
-        sentAt: info.sentAt,
-        responseHandler: handler,
-        responseType: data.type,
-        reason: data.reason,
-        message: data.message,
-      });
+ 
 
       if (data.reason === 'invalid_login_payload') {
-        console.log(`🚨 [${this.label}] RESULT_FOR_${info.debugName}: invalid_login_payload`);
       }
 
       if (data.reason === 'wrong_password') {
-        console.log(`🔑 [${this.label}] RESULT_FOR_${info.debugName}: payload accepted but password is wrong`);
       }
 
       if (data.reason === 'user_not_found') {
-        console.log(`👤 [${this.label}] RESULT_FOR_${info.debugName}: payload accepted but user not found`);
       }
 
       if (data.type === 'success') {
-        console.log(`✅ [${this.label}] RESULT_FOR_${info.debugName}: LOGIN SUCCESS`);
       }
     }
 
@@ -249,28 +202,16 @@ export class WsClient {
       if (data.type === 'success') {
         this.loggedIn = true;
 
-        console.log(`✅ [${this.label}] logged in`);
 
         if (data.user) {
-          console.log(`👤 [${this.label}] LOGIN_USER`, {
-            userId: data.user.userId,
-            username: data.user.username,
-            current: data.user.current,
-          });
+  
         }
 
         if (data.token) {
-          console.log(`🎟️ [${this.label}] LOGIN_TOKEN_RECEIVED`, {
-            tokenLength: String(data.token).length,
-            session_expires_at: data.session_expires_at,
-          });
+      
         }
       } else {
-        console.log(`❌ [${this.label}] login failed`, {
-          reason: data.reason,
-          message: data.message,
-          request_id: requestId,
-        });
+
       }
     }
 
@@ -285,13 +226,7 @@ export class WsClient {
     ) {
       const rooms = this.extractRoomsFromEvent(data);
 
-      console.log(`📚 [${this.label}] ROOMS_LIST_RECEIVED`, {
-        count: rooms.length,
-        sample: rooms.slice(0, 10).map((room) => ({
-          roomId: room.roomId,
-          name: room.name || room.roomName || room.title,
-        })),
-      });
+  
 
       const resolvers = this.pendingRoomListResolvers.splice(0);
 
@@ -302,17 +237,9 @@ export class WsClient {
 
     if (handler === 'room.join') {
       if (data.type === 'success') {
-        console.log(`✅ [${this.label}] ROOM_JOIN_SUCCESS`, {
-          requestId,
-          roomId: data.roomId || data.room?.roomId,
-          roomName: data.roomName || data.room?.name,
-        });
+ 
       } else {
-        console.log(`❌ [${this.label}] ROOM_JOIN_FAILED`, {
-          requestId,
-          reason: data.reason,
-          message: data.message,
-        });
+  
       }
     }
 
@@ -331,9 +258,7 @@ export class WsClient {
 
   send(payload, meta = {}) {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log(`❌ [${this.label}] SEND_FAILED_SOCKET_NOT_OPEN`, {
-        readyState: this.ws?.readyState,
-      });
+     
 
       return false;
     }
@@ -353,7 +278,6 @@ export class WsClient {
       });
     }
 
-    console.log(`\n📤 [${this.label}] RAW_SEND`);
     console.dir(safeCloneForLog(body), {
       depth: null,
       colors: true,
@@ -361,7 +285,6 @@ export class WsClient {
 
     const json = JSON.stringify(body);
 
-    console.log(`📏 [${this.label}] SEND_JSON_LENGTH`, json.length);
 
     this.ws.send(json);
 
@@ -373,10 +296,7 @@ export class WsClient {
     const body = String(text || '').trim();
 
     if (!target || !body) {
-      console.log(`❌ [${this.label}] DM_SEND_FAILED_EMPTY_DATA`, {
-        target,
-        hasText: Boolean(body),
-      });
+
 
       return false;
     }
@@ -456,8 +376,7 @@ export class WsClient {
   waitForRoomsList(timeoutMs = 8000) {
     return new Promise((resolve) => {
       const timer = setTimeout(() => {
-        console.log(`⏱️ [${this.label}] ROOM_LIST_TIMEOUT`);
-        resolve([]);
+   
       }, timeoutMs);
 
       this.pendingRoomListResolvers.push((rooms) => {
@@ -512,11 +431,7 @@ export class WsClient {
 
     const rooms = await this.waitForRoomsList();
 
-    console.log(`🔎 [${this.label}] FIND_ROOM_BY_NAME`, {
-      target: roomName,
-      normalizedTarget: target,
-      roomsCount: rooms.length,
-    });
+  
 
     for (const room of rooms) {
       const currentName = normalizeRoomName(
@@ -527,23 +442,13 @@ export class WsClient {
       );
 
       if (currentName === target) {
-        console.log(`✅ [${this.label}] ROOM_FOUND`, {
-          input: roomName,
-          roomId: room.roomId,
-          name: room.name || room.roomName || room.title,
-        });
+
 
         return room;
       }
     }
 
-    console.log(`❌ [${this.label}] ROOM_NOT_FOUND_BY_NAME`, {
-      input: roomName,
-      availableRooms: rooms.map((room) => ({
-        roomId: room.roomId,
-        name: room.name || room.roomName || room.title,
-      })),
-    });
+
 
     return null;
   }
@@ -557,7 +462,6 @@ export class WsClient {
     const value = normalizeText(roomNameOrId);
 
     if (!value) {
-      console.log(`❌ [${this.label}] joinRoomSmart failed: empty room`);
 
       return {
         ok: false,
@@ -625,11 +529,7 @@ sendRoomMessage(roomId, text, roomName = '') {
   const finalText = String(text || '').trim();
 
   if (!finalRoomId || !finalText) {
-    console.log(`❌ [${this.label}] ROOM_MESSAGE_SEND_EMPTY_DATA`, {
-      roomId: finalRoomId,
-      roomName: finalRoomName,
-      text: finalText,
-    });
+ 
 
     return false;
   }
@@ -653,11 +553,7 @@ sendRoomAudioUrl(roomId, audioUrl, roomName = '') {
   const finalUrl = String(audioUrl || '').trim();
 
   if (!finalRoomId || !finalUrl) {
-    console.log(`❌ [${this.label}] ROOM_AUDIO_SEND_EMPTY_DATA`, {
-      roomId: finalRoomId,
-      roomName: finalRoomName,
-      audioUrl: finalUrl,
-    });
+
 
     return false;
   }
@@ -700,7 +596,6 @@ sendRoomAudioUrl(roomId, audioUrl, roomName = '') {
     const text = String(statusText || '').trim();
 
     if (!text) {
-      console.log(`❌ [${this.label}] empty profile status`);
       return false;
     }
 

@@ -750,11 +750,7 @@ async function prepareSong({
   }
 
   if (result.success === false) {
-    console.log('❌ [MUSIC_RESULT_FAILED]', {
-      text: result.text,
-      error: result.error,
-      meta: result.meta,
-    });
+
 
     return {
       ok: false,

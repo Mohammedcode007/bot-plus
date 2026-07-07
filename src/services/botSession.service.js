@@ -268,20 +268,11 @@ export function startBotSession({
 
       sessionInfo.joinRequested = true;
 
-      console.log(
-        `🚪 [${botType}:${botUsername}] LOGIN_SUCCESS_JOIN_SMART`,
-        {
-          room: roomName,
-          restore: sessionInfo.restore,
-        },
-      );
+  
 
       const joinResult = await ws.joinRoomSmart(roomName);
 
-      console.log(
-        `🚪 [${botType}:${botUsername}] JOIN_SMART_RESULT`,
-        joinResult,
-      );
+   
 
       if (!joinResult.ok) {
         sessionInfo.joined = false;
@@ -319,13 +310,7 @@ export function startBotSession({
       sessionInfo.lastError =
         data.reason || 'login_failed';
 
-      console.log(
-        `❌ [${botType}:${botUsername}] LOGIN_FAILED`,
-        {
-          reason: data.reason,
-          restore: sessionInfo.restore,
-        },
-      );
+  
 
       if (botType === 'music') {
         await markMusicBotFailed({
@@ -372,14 +357,6 @@ export function startBotSession({
           sessionInfo,
         });
 
-        console.log(
-          `✅ [${botType}:${botUsername}] ROOM_JOIN_CONFIRMED`,
-          {
-            room: roomName,
-            roomId: joinedRoomId,
-            restore: sessionInfo.restore,
-          },
-        );
 
         if (!sessionInfo.profileUpdated) {
           const statusText = buildBotProfileStatus({
@@ -392,12 +369,7 @@ export function startBotSession({
 
           sessionInfo.profileUpdated = true;
 
-          console.log(
-            `👤 [${botType}:${botUsername}] PROFILE_STATUS_UPDATE_SENT`,
-            {
-              statusText,
-            },
-          );
+   
         }
 
         if (botType === 'music') {
@@ -418,14 +390,7 @@ export function startBotSession({
       sessionInfo.lastError =
         data.reason || 'room_join_failed';
 
-      console.log(
-        `❌ [${botType}:${botUsername}] ROOM_JOIN_FAILED`,
-        {
-          room: roomName,
-          reason: data.reason,
-          restore: sessionInfo.restore,
-        },
-      );
+ 
 
       if (botType === 'music') {
         await markMusicBotFailed({
@@ -517,9 +482,6 @@ export async function restoreSavedBotSessions(mainBot = null) {
   let skipped = 0;
   let failed = 0;
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('♻️ [BOT_RESTORE] START');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   for (const [room, bot] of Object.entries(data.controlled)) {
     const username = clean(bot?.username);
@@ -530,10 +492,7 @@ export async function restoreSavedBotSessions(mainBot = null) {
     if (!username || !password || !roomName) {
       failed += 1;
 
-      console.log('❌ [BOT_RESTORE] invalid controlled bot:', {
-        room,
-        bot,
-      });
+
 
       continue;
     }
@@ -554,7 +513,6 @@ export async function restoreSavedBotSessions(mainBot = null) {
       failed += 1;
     }
 
-    console.log('[BOT_RESTORE] controlled:', result.message);
   }
 
   for (const [room, bot] of Object.entries(data.music)) {
@@ -566,10 +524,7 @@ export async function restoreSavedBotSessions(mainBot = null) {
     if (!username || !password || !roomName) {
       failed += 1;
 
-      console.log('❌ [BOT_RESTORE] invalid music bot:', {
-        room,
-        bot,
-      });
+
 
       continue;
     }
@@ -590,7 +545,6 @@ export async function restoreSavedBotSessions(mainBot = null) {
       failed += 1;
     }
 
-    console.log('[BOT_RESTORE] music:', result.message);
   }
 
   for (const [room, bots] of Object.entries(data.silent)) {
@@ -608,10 +562,7 @@ export async function restoreSavedBotSessions(mainBot = null) {
       if (!username || !password || !roomName) {
         failed += 1;
 
-        console.log('❌ [BOT_RESTORE] invalid silent bot:', {
-          room,
-          bot,
-        });
+    
 
         continue;
       }
@@ -632,7 +583,6 @@ export async function restoreSavedBotSessions(mainBot = null) {
         failed += 1;
       }
 
-      console.log('[BOT_RESTORE] silent:', result.message);
     }
   }
 
@@ -640,14 +590,6 @@ export async function restoreSavedBotSessions(mainBot = null) {
     updateMainBotProfile(mainBot);
   }
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('♻️ [BOT_RESTORE] DONE', {
-    started,
-    skipped,
-    failed,
-    sessions: sessions.size,
-  });
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
   return {
     ok: true,
@@ -690,7 +632,6 @@ export function stopBotSession({
       sessionInfo.client.ws.close();
     }
   } catch (error) {
-    console.log('[BOT_SESSION] stop error:', error?.message);
   }
 
   sessions.delete(key);

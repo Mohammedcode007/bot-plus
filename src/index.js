@@ -85,11 +85,7 @@ async function main() {
       return;
     }
 
-    console.log('📩 [PRIVATE_COMMAND]', {
-      fromUserId: dm.fromUserId,
-      fromUsername: dm.fromUsername,
-      text: dm.text,
-    });
+   
 
     await handlePrivateMessage({
       mainBot,
@@ -111,14 +107,10 @@ async function main() {
   try {
     const result = await restoreSavedBotSessions(mainBot);
 
-    console.log('♻️ [BOT_RESTORE] RESULT', result);
 
     updateMainBotProfile(mainBot);
   } catch (error) {
-    console.log('❌ [BOT_RESTORE] ERROR', {
-      message: error?.message,
-      stack: error?.stack,
-    });
+
   }
 }, 3000);
 }

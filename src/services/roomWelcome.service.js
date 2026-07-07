@@ -353,18 +353,7 @@ function setState(roomKey, users, reason) {
 
   runtimeRoomState.set(roomKey, next);
 
-  console.log('🟡 [WELCOME_RUNTIME_STATE_SET]', {
-    roomKey,
-    reason,
-    count: users.length,
-    users: users.map((user) => ({
-      userId: user.userId,
-      username: user.username,
-      joinedAt: user.joinedAt,
-      socketId: user.socketId,
-      role: user.role,
-    })),
-  });
+
 
   return next;
 }
@@ -402,68 +391,10 @@ function logWelcomeDebug({
   newUsers,
   result,
 }) {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`👋 [WELCOME_DEBUG] ${step}`);
-  console.log('handler:', data?.handler);
-  console.log('type:', data?.type);
-  console.log('reason:', data?.reason);
-  console.log('room:', {
-    roomKey,
-    roomId,
-    roomName,
-  });
-  console.log('settings:', settings ? {
-    enabled: settings.enabled,
-    message: settings.message,
-    updatedBy: settings.updatedBy,
-    updatedAt: settings.updatedAt,
-  } : null);
-  console.log('currentUsers:', Array.isArray(currentUsers)
-    ? currentUsers.map((user) => ({
-      userId: user.userId,
-      username: user.username,
-      joinedAt: user.joinedAt,
-      socketId: user.socketId,
-      role: user.role,
-      accountColor: user.accountColor,
-      badgeKey: user.badgeKey,
-      badgeName: user.badgeName,
-      badgeValue: user.badgeValue,
-      verificationType: user.verificationType,
-    }))
-    : []);
-  console.log('previousUsers:', Array.isArray(previousUsers)
-    ? previousUsers.map((user) => ({
-      userId: user.userId,
-      username: user.username,
-      joinedAt: user.joinedAt,
-      socketId: user.socketId,
-      role: user.role,
-    }))
-    : []);
-  console.log('newUsers:', Array.isArray(newUsers)
-    ? newUsers.map((user) => ({
-      userId: user.userId,
-      username: user.username,
-      joinedAt: user.joinedAt,
-      socketId: user.socketId,
-      role: user.role,
-      accountColor: user.accountColor,
-      badgeKey: user.badgeKey,
-      badgeName: user.badgeName,
-      badgeValue: user.badgeValue,
-      verificationType: user.verificationType,
-    }))
-    : []);
-  console.log('result:', result);
-  console.log('raw keys:', Object.keys(data || {}));
-  console.log('message keys:', data?.message && typeof data.message === 'object'
-    ? Object.keys(data.message)
-    : []);
-  console.log('room keys:', data?.room && typeof data.room === 'object'
-    ? Object.keys(data.room)
-    : []);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+
+
+
 }
 
 export async function getWelcomeSettings({
@@ -807,10 +738,7 @@ export async function setRoomWelcomeEnabled({
       data: record,
     };
   } catch (error) {
-    console.log('❌ [WELCOME_ENABLE_ERROR]', {
-      message: error?.message,
-      stack: error?.stack,
-    });
+
 
     return {
       ok: false,
@@ -840,10 +768,7 @@ export async function setRoomWelcomeMessage({
       data: record,
     };
   } catch (error) {
-    console.log('❌ [WELCOME_SAVE_MESSAGE_ERROR]', {
-      message: error?.message,
-      stack: error?.stack,
-    });
+ 
 
     return {
       ok: false,

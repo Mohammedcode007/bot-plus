@@ -703,20 +703,14 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
       socket.sendRoomAudioUrl(url, roomName || roomId);
       return true;
     } catch (error) {
-      console.log(
-        '⚠️ [CONTROLLER_MUSIC] sendRoomAudioUrl(url, roomName) failed:',
-        error?.message || error,
-      );
+
     }
 
     try {
       socket.sendRoomAudioUrl(url);
       return true;
     } catch (error) {
-      console.log(
-        '⚠️ [CONTROLLER_MUSIC] sendRoomAudioUrl(url) failed:',
-        error?.message || error,
-      );
+ 
     }
 
     /*
@@ -727,10 +721,7 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
       socket.sendRoomAudioUrl(roomId, url, roomName);
       return true;
     } catch (error) {
-      console.log(
-        '⚠️ [CONTROLLER_MUSIC] sendRoomAudioUrl(roomId, url, roomName) failed:',
-        error?.message || error,
-      );
+  
     }
   }
 
@@ -785,12 +776,7 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
     } catch {}
   }
 
-  console.log('❌ [CONTROLLER_MUSIC_AUDIO_SEND_FAILED]', {
-    url,
-    roomId,
-    roomName,
-    socketKeys: socket ? Object.keys(socket) : [],
-  });
+
 
   return false;
 }
@@ -1252,10 +1238,7 @@ async function handleBroadcastSong({
     );
 
     if (!audioSent) {
-      console.log('❌ [MUSIC_BROADCAST_AUDIO_FAILED]', {
-        roomName: target.roomName,
-        url: prepared.url,
-      });
+  
     }
 
     if (i < targets.length - 1) {
@@ -1604,12 +1587,7 @@ function sendRoomAudioSafe(socket, roomId, roomName, url) {
     return true;
   }
 
-  console.log('❌ [CONTROLLER_MUSIC_AUDIO_SEND_FAILED]', {
-    url,
-    roomId,
-    roomName,
-    socketKeys: socket ? Object.keys(socket) : [],
-  });
+
 
   return false;
 }
@@ -2071,10 +2049,7 @@ async function handleBroadcastSong({
     );
 
     if (!audioSent) {
-      console.log('❌ [MUSIC_BROADCAST_AUDIO_FAILED]', {
-        roomName: target.roomName,
-        url: prepared.url,
-      });
+   
     }
 
     if (i < targets.length - 1) {

@@ -254,11 +254,7 @@ export async function saveRoomUsersFromEvent({
 
   await writeRoomUsersStore(store);
 
-  console.log('💾 [ROOM_USERS_SAVED]', {
-    roomId,
-    roomName,
-    count: users.length,
-  });
+
 
   return true;
 }

@@ -10,7 +10,6 @@ function sendWs(ws, payload, debugName) {
     };
   }
 
-  console.log(`🛡️ [${debugName}] PAYLOAD`, payload);
 
   const sent = ws.send(payload, {
     debugName,

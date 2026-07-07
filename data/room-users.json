@@ -2,12 +2,19 @@
   "rooms": {
     "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e": {
       "roomId": "room_cf4a2eaf-5694-48b6-a6e1-ae8d0bf94d6e",
-      "roomName": "مصر",
+      "roomName": "egypt",
       "users": [
         {
-          "userId": "113152984",
-          "username": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
-          "photoUrl": "https://res.cloudinary.com/dbennudkl/image/upload/v1781449143/bimo/users/avatars/113152984_1781449141614.jpg",
+          "userId": "189336334",
+          "username": "sara",
+          "photoUrl": "",
+          "role": "none",
+          "current": ""
+        },
+        {
+          "userId": "690638709",
+          "username": "ٱنـيـٖـۧۦٰۛـِـۧـق›♔‹ٱلـ⃪𓏺ـحـٖۧـضـۦٰۛـِـوٰر𝀚",
+          "photoUrl": "",
           "role": "none",
           "current": ""
         },
@@ -19,39 +26,26 @@
           "current": ""
         },
         {
+          "userId": "285117878",
+          "username": "music_dj",
+          "photoUrl": "",
+          "role": "none",
+          "current": ""
+        },
+        {
           "userId": "251110670",
           "username": "controller_bot",
           "photoUrl": "",
           "role": "none",
           "current": ""
-        },
-        {
-          "userId": "285117878",
-          "username": "music_dj",
-          "photoUrl": "",
-          "role": "none",
-          "current": ""
         }
       ],
-      "count": 4,
-      "updatedAt": "2026-07-06T09:24:28.735Z"
-    },
-    "room_647921c5-390c-41f0-be9a-8b5b4a10c170": {
-      "roomId": "room_647921c5-390c-41f0-be9a-8b5b4a10c170",
-      "roomName": "egypt",
-      "users": [
-        {
-          "userId": "113152984",
-          "username": "ا◙☬ځُــۥـ☼ـڈ◄أڵـــســمـــٱ۽►ـۉد☼ــۥــۓ☬◙ا",
-          "photoUrl": "https://res.cloudinary.com/dbennudkl/image/upload/v1781449143/bimo/users/avatars/113152984_1781449141614.jpg",
-          "role": "owner",
-          "current": ""
-        },
-        {
-          "userId": "189336334",
-          "username": "sara",
-          "photoUrl": "",
-          "role": "owner",
+      "count": 5,
+      "updatedAt": "2026-07-07T07:50:31.543Z"
+    }
+  }
+}bennudkl/image/upload/v1783140106/bimo/users/avatars/313110889_1783140106215.jpg",
+          "role": "none",
           "current": ""
         },
         {
@@ -60,10 +54,17 @@
           "photoUrl": "",
           "role": "none",
           "current": ""
+        },
+        {
+          "userId": "251110670",
+          "username": "controller_bot",
+          "photoUrl": "",
+          "role": "none",
+          "current": ""
         }
       ],
-      "count": 3,
-      "updatedAt": "2026-07-06T09:25:59.356Z"
+      "count": 5,
+      "updatedAt": "2026-07-07T07:50:31.526Z"
     }
   }
 }

@@ -1185,17 +1185,7 @@ const pointsTransferHandled = await handlePointsTransferCommand({
 if (pointsTransferHandled) {
   return true;
 }
-  console.log(
-    `📥 [controlled:${sessionInfo.username}] ROOM_COMMAND`,
-    {
-      text: roomMessage.text,
-      roomId: roomMessage.roomId,
-      roomName: roomMessage.roomName,
-      fromUserId: roomMessage.fromUserId,
-      fromUsername: roomMessage.fromUsername,
-      createdBy: sessionInfo.createdBy,
-    },
-  );
+
 
   const welcomeHandled = await handleWelcomeCommand({
     roomMessage,
