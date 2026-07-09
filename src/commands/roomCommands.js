@@ -13,6 +13,12 @@ import {
   handleLuckyCommand,
 } from './luckyCommands.js';
 import {
+  handleFunGamesCommand,
+} from './funGamesCommands.js';
+import {
+  handleSlapCommand,
+} from './slapCommands.js';
+import {
   handleVipUserRoomCommand,
 } from './vipUserCommands.js';
 import {
@@ -1283,6 +1289,14 @@ const bankHandled = await handleBankCommand({
 });
 
 if (bankHandled) return true;
+const slapHandled = await handleSlapCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (slapHandled) return true;
 const bribeHandled = await handleBribeCommand({
   roomMessage,
   ws,
@@ -1291,6 +1305,14 @@ const bribeHandled = await handleBribeCommand({
 });
 
 if (bribeHandled) return true;
+const funGamesHandled = await handleFunGamesCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (funGamesHandled) return true;
   const luckyHandled = await handleLuckyCommand({
     roomMessage,
     ws,
