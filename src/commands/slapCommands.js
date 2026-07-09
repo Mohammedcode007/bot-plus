@@ -12,10 +12,8 @@ import {
 import {
   createSlapChallenge,
   getActiveSlapChallenge,
-  getKnownSlapRooms,
   getSlapTopPlayers,
   joinAndResolveSlapChallenge,
-  registerSlapRoom,
 } from '../services/slapGame.service.js';
 
 function parseSlapCommand(text) {
@@ -58,74 +56,291 @@ function getPlayerName(roomMessage) {
     'User';
 }
 
-function cleanRoomList(rooms) {
-  const seen = new Set();
+function normalizeRoomName(roomName) {
+  return clean(roomName).toLowerCase();
+}
 
-  return rooms.filter((room) => {
-    const roomId = clean(room.roomId);
-    const roomName = clean(room.roomName);
+function isMusicKey(key) {
+  return clean(key).toLowerCase().startsWith('music:');
+}
 
-    const key = roomId || roomName;
+function isControllerKey(key) {
+  const value = clean(key).toLowerCase();
 
-    if (!key) {
-      return false;
+  return (
+    value.startsWith('controller:') ||
+    value.startsWith('control:') ||
+    value.startsWith('bot_controller:')
+  );
+}
+
+function getMusicRoomFromKey(key) {
+  return clean(key).replace(/^music:/i, '');
+}
+
+function getControllerRoomFromKey(key) {
+  const raw = clean(key);
+
+  if (!raw) {
+    return '';
+  }
+
+  const parts = raw.split(':');
+
+  if (parts.length >= 2) {
+    return clean(parts[1]);
+  }
+
+  return '';
+}
+
+function getBroadcastTargets({
+  runtime,
+  currentSocket,
+  currentRoomId,
+  currentRoomName,
+}) {
+  const targetsByRoom = new Map();
+
+  const connections =
+    runtime &&
+    runtime.registry &&
+    runtime.registry.connections instanceof Map
+      ? runtime.registry.connections
+      : null;
+
+  if (connections) {
+    for (const [key, instance] of connections.entries()) {
+      if (!isMusicKey(key)) {
+        continue;
+      }
+
+      if (!instance || typeof instance.sendRoomMessage !== 'function') {
+        continue;
+      }
+
+      const roomName = getMusicRoomFromKey(key);
+      const roomKey = normalizeRoomName(roomName);
+
+      if (!roomKey) {
+        continue;
+      }
+
+      targetsByRoom.set(roomKey, {
+        type: 'music',
+        roomId: instance.roomId || instance?.bot?.roomId || '',
+        roomName,
+        socket: instance,
+      });
     }
 
-    const normalized = key.toLowerCase();
+    for (const [key, instance] of connections.entries()) {
+      if (!isControllerKey(key)) {
+        continue;
+      }
 
-    if (seen.has(normalized)) {
-      return false;
+      if (!instance || typeof instance.sendRoomMessage !== 'function') {
+        continue;
+      }
+
+      const roomName =
+        getControllerRoomFromKey(key) ||
+        instance.roomName ||
+        instance?.bot?.roomName ||
+        instance?.bot?.room ||
+        '';
+
+      const roomKey = normalizeRoomName(roomName);
+
+      if (!roomKey) {
+        continue;
+      }
+
+      if (targetsByRoom.has(roomKey)) {
+        continue;
+      }
+
+      targetsByRoom.set(roomKey, {
+        type: 'controller',
+        roomId: instance.roomId || instance?.bot?.roomId || '',
+        roomName,
+        socket: instance,
+      });
+    }
+  }
+
+  if (
+    targetsByRoom.size === 0 &&
+    currentSocket &&
+    typeof currentSocket.sendRoomMessage === 'function'
+  ) {
+    targetsByRoom.set(
+      normalizeRoomName(currentRoomName) || 'current-room',
+      {
+        type: 'current',
+        roomId: currentRoomId,
+        roomName: currentRoomName,
+        socket: currentSocket,
+      },
+    );
+  }
+
+  return Array.from(targetsByRoom.values());
+}
+
+function prioritizeCurrentRoomTargets({
+  targets,
+  currentRoomName,
+  currentSocket,
+  currentRoomId,
+}) {
+  const currentKey = normalizeRoomName(currentRoomName);
+  const result = [];
+  const usedRooms = new Set();
+
+  if (currentKey) {
+    const currentTarget = targets.find((target) => {
+      return normalizeRoomName(target.roomName) === currentKey;
+    });
+
+    if (currentTarget) {
+      result.push(currentTarget);
+      usedRooms.add(currentKey);
+    } else if (currentSocket) {
+      result.push({
+        type: 'current',
+        roomId: currentRoomId,
+        roomName: currentRoomName,
+        socket: currentSocket,
+      });
+
+      usedRooms.add(currentKey);
+    }
+  }
+
+  for (const target of targets) {
+    const key = normalizeRoomName(target.roomName);
+
+    if (!key || usedRooms.has(key)) {
+      continue;
     }
 
-    seen.add(normalized);
+    result.push(target);
+    usedRooms.add(key);
+  }
+
+  return result;
+}
+
+function sendRoomTextSafe(socket, roomId, roomName, text) {
+  if (!socket || !text) {
+    return false;
+  }
+
+  if (typeof socket.sendRoomMessage === 'function') {
+    try {
+      socket.sendRoomMessage(roomId, text, roomName);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ [SLAP_SEND_ROOM_MESSAGE_FAILED_1]',
+        error?.message || error,
+      );
+    }
+
+    try {
+      socket.sendRoomMessage(roomId, text);
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ [SLAP_SEND_ROOM_MESSAGE_FAILED_2]',
+        error?.message || error,
+      );
+    }
+  }
+
+  if (typeof socket.send === 'function') {
+    socket.send({
+      handler: 'room.message.send',
+      roomId: String(roomId || '').trim(),
+      roomName: String(roomName || '').trim(),
+      type: 'text',
+      text: String(text || ''),
+    });
 
     return true;
-  });
+  }
+
+  return false;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function sendToAllSlapRooms({
   ws,
+  runtime,
   text,
   fallbackRoomId,
   fallbackRoomName,
 }) {
-  const knownRooms = cleanRoomList(await getKnownSlapRooms());
+  const targets = prioritizeCurrentRoomTargets({
+    targets: getBroadcastTargets({
+      runtime,
+      currentSocket: ws,
+      currentRoomId: fallbackRoomId,
+      currentRoomName: fallbackRoomName,
+    }),
+    currentSocket: ws,
+    currentRoomId: fallbackRoomId,
+    currentRoomName: fallbackRoomName,
+  });
 
-  if (knownRooms.length === 0) {
-    ws.sendRoomMessage(
+  if (!targets.length) {
+    sendRoomTextSafe(
+      ws,
       fallbackRoomId,
-      text,
       fallbackRoomName,
+      text,
     );
 
     return;
   }
 
-  for (const room of knownRooms) {
-    ws.sendRoomMessage(
-      clean(room.roomId) || fallbackRoomId,
+  const delayMs = Number(process.env.SLAP_BROADCAST_DELAY_MS || 300);
+
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+
+    sendRoomTextSafe(
+      target.socket,
+      target.roomId || fallbackRoomId,
+      target.roomName || fallbackRoomName,
       text,
-      clean(room.roomName) || fallbackRoomName,
     );
+
+    if (i < targets.length - 1) {
+      await sleep(delayMs);
+    }
   }
 }
 
 function buildChallengeAnnouncement({
   playerName,
   prizePoints,
-  challengeSeconds,
 }) {
   return [
     '🥊 تحدي كف جديد',
     '',
     `👋 ${playerName} أرسل تحدي كف!`,
     '',
-    'أول مستخدم يكتب:',
+    'أول مستخدم في أي غرفة يكتب:',
     'كف',
     'يدخل معه التحدي.',
     '',
     `🏆 الجائزة: ${prizePoints} نقطة`,
-    `⏱️ مدة التحدي: ${challengeSeconds} ثانية`,
+    '⏳ التحدي مفتوح حتى يدخل لاعب آخر.',
   ].join('\n');
 }
 
@@ -135,7 +350,21 @@ function buildWaitingText({
   return [
     '🥊 لديك تحدي كف مفتوح بالفعل.',
     '',
-    `👋 ${playerName} ينتظر أول لاعب يكتب: كف`,
+    `👋 ${playerName} بدأ تحدي كف وينتظر لاعبًا آخر.`,
+    '',
+    'لا يمكنك بدء تحدي جديد قبل أن يدخل لاعب آخر.',
+  ].join('\n');
+}
+
+function buildAlreadyActiveText({
+  starterName,
+}) {
+  return [
+    '🥊 يوجد تحدي كف مفتوح بالفعل.',
+    '',
+    `👋 صاحب التحدي: ${starterName}`,
+    '',
+    'اكتب كف للدخول معه بدل إنشاء تحدي جديد.',
   ].join('\n');
 }
 
@@ -171,6 +400,8 @@ function buildResultText({
     'الكف كان سريع لدرجة البوت نفسه اتخض.',
     'الضربة كانت محسوبة بالملّي.',
     'ده مش كف، ده إعلان رسمي بالفوز.',
+    'الكف وصل قبل ما الخاسر يستوعب.',
+    'الصفعة كانت قانونية لكن مؤلمة.',
   ];
 
   const randomLine = funLines[Math.floor(Math.random() * funLines.length)];
@@ -238,6 +469,7 @@ function noActiveChallengeText() {
 export async function handleSlapCommand({
   roomMessage,
   ws,
+  runtime,
   targetRoomId,
   targetRoomName,
 }) {
@@ -247,18 +479,14 @@ export async function handleSlapCommand({
     return false;
   }
 
-  await registerSlapRoom({
-    roomId: targetRoomId,
-    roomName: targetRoomName,
-  });
-
   if (parsed.type === 'top') {
     const topPlayers = await getSlapTopPlayers(10);
 
-    ws.sendRoomMessage(
+    sendRoomTextSafe(
+      ws,
       targetRoomId,
-      buildTopText(topPlayers),
       targetRoomName,
+      buildTopText(topPlayers),
     );
 
     return true;
@@ -269,10 +497,11 @@ export async function handleSlapCommand({
   const playerName = getPlayerName(roomMessage);
 
   if (!playerKey || !playerIdKey) {
-    ws.sendRoomMessage(
+    sendRoomTextSafe(
+      ws,
       targetRoomId,
-      identifyErrorText(),
       targetRoomName,
+      identifyErrorText(),
     );
 
     return true;
@@ -291,19 +520,52 @@ export async function handleSlapCommand({
 
     if (!created.ok) {
       if (created.reason === 'disabled') {
-        ws.sendRoomMessage(
+        sendRoomTextSafe(
+          ws,
           targetRoomId,
-          disabledText(),
           targetRoomName,
+          disabledText(),
         );
 
         return true;
       }
 
-      ws.sendRoomMessage(
+      if (created.reason === 'starter_already_waiting') {
+        sendRoomTextSafe(
+          ws,
+          targetRoomId,
+          targetRoomName,
+          buildWaitingText({
+            playerName,
+          }),
+        );
+
+        return true;
+      }
+
+      if (created.reason === 'already_active') {
+        const starterName =
+          clean(created.challenge?.starter?.username) ||
+          clean(created.challenge?.starter?.userId) ||
+          'لاعب';
+
+        sendRoomTextSafe(
+          ws,
+          targetRoomId,
+          targetRoomName,
+          buildAlreadyActiveText({
+            starterName,
+          }),
+        );
+
+        return true;
+      }
+
+      sendRoomTextSafe(
+        ws,
         targetRoomId,
-        '❌ لم أستطع إنشاء تحدي الكف.',
         targetRoomName,
+        '❌ لم أستطع إنشاء تحدي الكف.',
       );
 
       return true;
@@ -311,10 +573,10 @@ export async function handleSlapCommand({
 
     await sendToAllSlapRooms({
       ws,
+      runtime,
       text: buildChallengeAnnouncement({
         playerName,
         prizePoints: created.settings.prizePoints,
-        challengeSeconds: created.settings.challengeSeconds,
       }),
       fallbackRoomId: targetRoomId,
       fallbackRoomName: targetRoomName,
@@ -329,12 +591,13 @@ export async function handleSlapCommand({
     activeStarterKey &&
     activeStarterKey.toLowerCase() === playerKey.toLowerCase()
   ) {
-    ws.sendRoomMessage(
+    sendRoomTextSafe(
+      ws,
       targetRoomId,
+      targetRoomName,
       buildWaitingText({
         playerName,
       }),
-      targetRoomName,
     );
 
     return true;
@@ -350,39 +613,43 @@ export async function handleSlapCommand({
 
   if (!resolved.ok) {
     if (resolved.reason === 'disabled') {
-      ws.sendRoomMessage(
+      sendRoomTextSafe(
+        ws,
         targetRoomId,
-        disabledText(),
         targetRoomName,
+        disabledText(),
       );
 
       return true;
     }
 
     if (resolved.reason === 'same_player') {
-      ws.sendRoomMessage(
+      sendRoomTextSafe(
+        ws,
         targetRoomId,
-        buildSamePlayerText(),
         targetRoomName,
+        buildSamePlayerText(),
       );
 
       return true;
     }
 
     if (resolved.reason === 'no_active_challenge') {
-      ws.sendRoomMessage(
+      sendRoomTextSafe(
+        ws,
         targetRoomId,
-        noActiveChallengeText(),
         targetRoomName,
+        noActiveChallengeText(),
       );
 
       return true;
     }
 
-    ws.sendRoomMessage(
+    sendRoomTextSafe(
+      ws,
       targetRoomId,
-      '❌ لم أستطع إنهاء تحدي الكف.',
       targetRoomName,
+      '❌ لم أستطع إنهاء تحدي الكف.',
     );
 
     return true;
@@ -401,6 +668,7 @@ export async function handleSlapCommand({
 
   await sendToAllSlapRooms({
     ws,
+    runtime,
     text: buildResultText({
       result: resolved.result,
     }),
