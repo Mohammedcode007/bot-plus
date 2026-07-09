@@ -26,6 +26,9 @@ import { handleFishCommand } from './fishCommands.js';
 import { handleMineCommand } from './mineCommands.js';
 import { handleBankCommand } from './bankCommands.js';
 import {
+  handleBribeCommand,
+} from './bribeCommands.js';
+import {
   handlePrivateRelayCommand,
 } from './privateRelayCommands.js';
 import {
@@ -1280,6 +1283,14 @@ const bankHandled = await handleBankCommand({
 });
 
 if (bankHandled) return true;
+const bribeHandled = await handleBribeCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (bribeHandled) return true;
   const luckyHandled = await handleLuckyCommand({
     roomMessage,
     ws,
