@@ -419,8 +419,24 @@ function readRoomMessage(data) {
 
   return {
     raw: message,
-    roomId: clean(message.roomId || data.roomId),
-    roomName: clean(message.roomName || data.roomName || data.name),
+
+    roomId: clean(
+      message.roomId ||
+      message?.room?.roomId ||
+      message?.room?.id ||
+      data?.roomId ||
+      data?.room?.roomId ||
+      data?.room?.id,
+    ),
+
+    roomName: clean(
+      message.roomName ||
+      message?.room?.name ||
+      data?.roomName ||
+      data?.room?.name ||
+      data?.name,
+    ),
+
     text: clean(message.text),
     fromUserId: clean(message.fromUserId),
     fromUsername: clean(message.fromUsername),
@@ -833,7 +849,95 @@ function getControllerRoomFromKey(key) {
 
   return '';
 }
+function findActualRoomName({
+  runtime,
+  ws,
+  roomId,
+  roomMessage,
+  data,
+  sessionInfo,
+}) {
+  const wantedRoomId = clean(roomId);
 
+  const directRoomName =
+    clean(roomMessage?.roomName) ||
+    clean(roomMessage?.raw?.roomName) ||
+    clean(roomMessage?.raw?.room?.name) ||
+    clean(data?.roomName) ||
+    clean(data?.message?.roomName) ||
+    clean(data?.message?.room?.name);
+
+  if (directRoomName) {
+    return directRoomName;
+  }
+
+  const connections =
+    runtime?.registry?.connections instanceof Map
+      ? runtime.registry.connections
+      : null;
+
+  if (connections && wantedRoomId) {
+    for (const [key, instance] of connections.entries()) {
+      if (!instance) {
+        continue;
+      }
+
+      const instanceRoomId = clean(
+        instance.roomId ||
+        instance?.bot?.roomId ||
+        instance?.sessionInfo?.roomId,
+      );
+
+      if (!instanceRoomId || instanceRoomId !== wantedRoomId) {
+        continue;
+      }
+
+      const roomName =
+        clean(instance.roomName) ||
+        clean(instance?.bot?.roomName) ||
+        clean(instance?.bot?.room) ||
+        clean(instance?.sessionInfo?.roomName) ||
+        clean(instance?.sessionInfo?.room) ||
+        (
+          isMusicKey(key)
+            ? clean(getMusicRoomFromKey(key))
+            : clean(getControllerRoomFromKey(key))
+        );
+
+      if (roomName) {
+        return roomName;
+      }
+    }
+  }
+
+  if (connections && ws) {
+    for (const [key, instance] of connections.entries()) {
+      if (instance !== ws) {
+        continue;
+      }
+
+      const roomName =
+        clean(instance?.roomName) ||
+        clean(instance?.bot?.roomName) ||
+        clean(instance?.bot?.room) ||
+        (
+          isMusicKey(key)
+            ? clean(getMusicRoomFromKey(key))
+            : clean(getControllerRoomFromKey(key))
+        );
+
+      if (roomName) {
+        return roomName;
+      }
+    }
+  }
+
+  return (
+    clean(sessionInfo?.roomName) ||
+    clean(sessionInfo?.room) ||
+    ''
+  );
+}
 function getBroadcastTargets({
   runtime,
   currentSocket,
@@ -1576,18 +1680,34 @@ export async function handleMusicRoomCommand({
   لازم نرسل في نفس الغرفة التي جاء منها الأمر.
   لا نستخدم sessionInfo.roomId أولًا لأنه قد يكون غرفة أخرى محفوظة للبوت.
 */
-const targetRoomId =
+const targetRoomId = clean(
   roomMessage.roomId ||
+  roomMessage?.raw?.roomId ||
+  roomMessage?.raw?.room?.roomId ||
+  roomMessage?.raw?.room?.id ||
   data?.roomId ||
+  data?.message?.roomId ||
   sessionInfo?.roomId ||
-  '';
+  '',
+);
 
-const targetRoomName =
-  roomMessage.roomName ||
-  data?.roomName ||
-  sessionInfo?.roomName ||
-  sessionInfo?.room ||
-  '';
+const targetRoomName = findActualRoomName({
+  runtime,
+  ws,
+  roomId: targetRoomId,
+  roomMessage,
+  data,
+  sessionInfo,
+});
+
+console.log('🎵 [MUSIC_ACTUAL_ROOM]', {
+  command: roomMessage.text,
+  targetRoomId,
+  targetRoomName,
+  messageRoomName: roomMessage.roomName,
+  dataRoomName: data?.roomName,
+  sessionRoomName: sessionInfo?.roomName,
+});
 
   if (isMusicHelpCommand(roomMessage.text)) {
     sendRoomTextSafe(

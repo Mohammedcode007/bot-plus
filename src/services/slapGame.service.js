@@ -1,7 +1,427 @@
+// import fs from 'fs/promises';
+// import path from 'path';
+
+// const SLAP_GAME_FILE = path.resolve('data/slap-game.json');
+
+// function clean(value) {
+//   return String(value || '').trim();
+// }
+
+// function normalizeKey(value) {
+//   return clean(value).toLowerCase();
+// }
+
+// function defaultSlapStore() {
+//   return {
+//     settings: {
+//       enabled: true,
+//       prizePoints: 100,
+//     },
+
+//     activeChallenge: null,
+
+//     stats: {},
+//   };
+// }
+
+// async function ensureSlapFile() {
+//   try {
+//     await fs.mkdir(path.dirname(SLAP_GAME_FILE), {
+//       recursive: true,
+//     });
+
+//     await fs.access(SLAP_GAME_FILE);
+//   } catch {
+//     await fs.writeFile(
+//       SLAP_GAME_FILE,
+//       JSON.stringify(defaultSlapStore(), null, 2),
+//       'utf8',
+//     );
+//   }
+// }
+
+// export async function readSlapStore() {
+//   await ensureSlapFile();
+
+//   try {
+//     const raw = await fs.readFile(SLAP_GAME_FILE, 'utf8');
+//     const data = JSON.parse(raw || '{}');
+//     const defaults = defaultSlapStore();
+
+//     return data && typeof data === 'object'
+//       ? {
+//           ...defaults,
+//           ...data,
+
+//           settings: {
+//             ...defaults.settings,
+//             ...(data.settings || {}),
+//           },
+
+//           /*
+//             مهم:
+//             حذفنا rooms و challengeSeconds من النظام الجديد.
+//             لكن لو الملف القديم يحتوي عليهم، لن يسببوا مشكلة.
+//           */
+//           activeChallenge:
+//             data.activeChallenge &&
+//             typeof data.activeChallenge === 'object'
+//               ? data.activeChallenge
+//               : null,
+
+//           stats:
+//             data.stats &&
+//             typeof data.stats === 'object' &&
+//             !Array.isArray(data.stats)
+//               ? data.stats
+//               : {},
+//         }
+//       : defaults;
+//   } catch {
+//     return defaultSlapStore();
+//   }
+// }
+
+// async function writeSlapStore(store) {
+//   const safeStore = {
+//     settings: {
+//       enabled: store?.settings?.enabled === true,
+//       prizePoints: Math.max(
+//         1,
+//         Number(store?.settings?.prizePoints) || 100,
+//       ),
+//     },
+
+//     activeChallenge:
+//       store?.activeChallenge &&
+//       typeof store.activeChallenge === 'object'
+//         ? store.activeChallenge
+//         : null,
+
+//     stats:
+//       store?.stats &&
+//       typeof store.stats === 'object' &&
+//       !Array.isArray(store.stats)
+//         ? store.stats
+//         : {},
+//   };
+
+//   await fs.mkdir(path.dirname(SLAP_GAME_FILE), {
+//     recursive: true,
+//   });
+
+//   await fs.writeFile(
+//     SLAP_GAME_FILE,
+//     JSON.stringify(safeStore, null, 2),
+//     'utf8',
+//   );
+// }
+
+// function makeChallengeId() {
+//   return `slap_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+// }
+
+// export async function getActiveSlapChallenge() {
+//   const store = await readSlapStore();
+
+//   return store.activeChallenge;
+// }
+
+// export async function createSlapChallenge({
+//   playerKey,
+//   username,
+//   userId,
+//   roomId,
+//   roomName,
+// }) {
+//   const store = await readSlapStore();
+
+//   if (store.settings.enabled !== true) {
+//     return {
+//       ok: false,
+//       reason: 'disabled',
+//       challenge: null,
+//       settings: store.settings,
+//     };
+//   }
+
+//   const cleanPlayerKey = clean(playerKey);
+
+//   if (!cleanPlayerKey) {
+//     return {
+//       ok: false,
+//       reason: 'missing_player',
+//       challenge: null,
+//       settings: store.settings,
+//     };
+//   }
+
+//   if (store.activeChallenge) {
+//     const starterKey = clean(store.activeChallenge?.starter?.playerKey);
+
+//     if (
+//       starterKey &&
+//       normalizeKey(starterKey) === normalizeKey(cleanPlayerKey)
+//     ) {
+//       return {
+//         ok: false,
+//         reason: 'starter_already_waiting',
+//         challenge: store.activeChallenge,
+//         settings: store.settings,
+//       };
+//     }
+
+//     return {
+//       ok: false,
+//       reason: 'already_active',
+//       challenge: store.activeChallenge,
+//       settings: store.settings,
+//     };
+//   }
+
+//   const challenge = {
+//     id: makeChallengeId(),
+//     status: 'waiting',
+
+//     starter: {
+//       playerKey: cleanPlayerKey,
+//       username: clean(username),
+//       userId: clean(userId),
+//       roomId: clean(roomId),
+//       roomName: clean(roomName),
+//     },
+
+//     startedAt: new Date().toISOString(),
+//   };
+
+//   store.activeChallenge = challenge;
+
+//   await writeSlapStore(store);
+
+//   return {
+//     ok: true,
+//     reason: '',
+//     challenge,
+//     settings: store.settings,
+//   };
+// }
+
+// function ensurePlayerStats(
+//   store,
+//   {
+//     playerKey,
+//     username,
+//     userId,
+//   },
+// ) {
+//   const key = clean(playerKey);
+
+//   if (!key) {
+//     return null;
+//   }
+
+//   if (!store.stats || typeof store.stats !== 'object') {
+//     store.stats = {};
+//   }
+
+//   if (!store.stats[key]) {
+//     store.stats[key] = {
+//       playerKey: key,
+//       username: clean(username),
+//       userId: clean(userId),
+
+//       wins: 0,
+//       losses: 0,
+//       played: 0,
+//       pointsWon: 0,
+
+//       createdAt: new Date().toISOString(),
+//       updatedAt: new Date().toISOString(),
+//     };
+//   }
+
+//   store.stats[key].username =
+//     clean(username) || clean(store.stats[key].username);
+
+//   store.stats[key].userId =
+//     clean(userId) || clean(store.stats[key].userId);
+
+//   store.stats[key].updatedAt = new Date().toISOString();
+
+//   return store.stats[key];
+// }
+
+// export async function joinAndResolveSlapChallenge({
+//   playerKey,
+//   username,
+//   userId,
+//   roomId,
+//   roomName,
+// }) {
+//   const store = await readSlapStore();
+
+//   if (store.settings.enabled !== true) {
+//     return {
+//       ok: false,
+//       reason: 'disabled',
+//       result: null,
+//       settings: store.settings,
+//     };
+//   }
+
+//   const challenge = store.activeChallenge;
+
+//   if (!challenge || challenge.status !== 'waiting') {
+//     return {
+//       ok: false,
+//       reason: 'no_active_challenge',
+//       result: null,
+//       settings: store.settings,
+//     };
+//   }
+
+//   const starterKey = clean(challenge.starter?.playerKey);
+//   const joinerKey = clean(playerKey);
+
+//   if (!starterKey || !joinerKey) {
+//     return {
+//       ok: false,
+//       reason: 'missing_player',
+//       result: null,
+//       challenge,
+//       settings: store.settings,
+//     };
+//   }
+
+//   if (normalizeKey(starterKey) === normalizeKey(joinerKey)) {
+//     return {
+//       ok: false,
+//       reason: 'same_player',
+//       result: null,
+//       challenge,
+//       settings: store.settings,
+//     };
+//   }
+
+//   const starter = {
+//     playerKey: starterKey,
+//     username: clean(challenge.starter?.username),
+//     userId: clean(challenge.starter?.userId),
+//     roomId: clean(challenge.starter?.roomId),
+//     roomName: clean(challenge.starter?.roomName),
+//   };
+
+//   const joiner = {
+//     playerKey: joinerKey,
+//     username: clean(username),
+//     userId: clean(userId),
+//     roomId: clean(roomId),
+//     roomName: clean(roomName),
+//   };
+
+//   const starterWins = Math.random() < 0.5;
+
+//   const winner = starterWins ? starter : joiner;
+//   const loser = starterWins ? joiner : starter;
+
+//   const prizePoints = Math.max(
+//     1,
+//     Number(store.settings.prizePoints) || 100,
+//   );
+
+//   const winnerStats = ensurePlayerStats(store, winner);
+//   const loserStats = ensurePlayerStats(store, loser);
+
+//   if (winnerStats) {
+//     winnerStats.wins = Number(winnerStats.wins || 0) + 1;
+//     winnerStats.played = Number(winnerStats.played || 0) + 1;
+//     winnerStats.pointsWon = Number(winnerStats.pointsWon || 0) + prizePoints;
+//     winnerStats.updatedAt = new Date().toISOString();
+//   }
+
+//   if (loserStats) {
+//     loserStats.losses = Number(loserStats.losses || 0) + 1;
+//     loserStats.played = Number(loserStats.played || 0) + 1;
+//     loserStats.updatedAt = new Date().toISOString();
+//   }
+
+//   const result = {
+//     challengeId: challenge.id,
+//     starter,
+//     joiner,
+//     winner,
+//     loser,
+//     prizePoints,
+//     finishedAt: new Date().toISOString(),
+//   };
+
+//   /*
+//     مهم:
+//     بعد دخول اللاعب الثاني وتحديد الفائز،
+//     يتم إغلاق التحدي حتى يستطيع أي لاعب بدء تحدي جديد.
+//   */
+//   store.activeChallenge = null;
+
+//   await writeSlapStore(store);
+
+//   return {
+//     ok: true,
+//     reason: '',
+//     result,
+//     settings: store.settings,
+//   };
+// }
+
+// export async function cancelSlapChallenge() {
+//   const store = await readSlapStore();
+
+//   store.activeChallenge = null;
+
+//   await writeSlapStore(store);
+
+//   return {
+//     ok: true,
+//   };
+// }
+
+// export async function getSlapTopPlayers(limit = 10) {
+//   const store = await readSlapStore();
+
+//   const items = Object.values(store.stats || {})
+//     .filter((item) => {
+//       return item && Number(item.wins) > 0;
+//     })
+//     .sort((a, b) => {
+//       const winsDiff = Number(b.wins || 0) - Number(a.wins || 0);
+
+//       if (winsDiff !== 0) {
+//         return winsDiff;
+//       }
+
+//       const pointsDiff = Number(b.pointsWon || 0) - Number(a.pointsWon || 0);
+
+//       if (pointsDiff !== 0) {
+//         return pointsDiff;
+//       }
+
+//       return Number(b.played || 0) - Number(a.played || 0);
+//     })
+//     .slice(0, limit);
+
+//   return items;
+// }
+
+// export async function getSlapSettings() {
+//   const store = await readSlapStore();
+
+//   return store.settings;
+// }
 import fs from 'fs/promises';
 import path from 'path';
 
 const SLAP_GAME_FILE = path.resolve('data/slap-game.json');
+
+const DEFAULT_COOLDOWN_MS = 5 * 60 * 1000;
 
 function clean(value) {
   return String(value || '').trim();
@@ -16,11 +436,14 @@ function defaultSlapStore() {
     settings: {
       enabled: true,
       prizePoints: 100,
+      playerCooldownMs: DEFAULT_COOLDOWN_MS,
     },
 
     activeChallenge: null,
 
     stats: {},
+    rooms: {},
+    cooldowns: {},
   };
 }
 
@@ -58,11 +481,6 @@ export async function readSlapStore() {
             ...(data.settings || {}),
           },
 
-          /*
-            مهم:
-            حذفنا rooms و challengeSeconds من النظام الجديد.
-            لكن لو الملف القديم يحتوي عليهم، لن يسببوا مشكلة.
-          */
           activeChallenge:
             data.activeChallenge &&
             typeof data.activeChallenge === 'object'
@@ -75,9 +493,24 @@ export async function readSlapStore() {
             !Array.isArray(data.stats)
               ? data.stats
               : {},
+
+          rooms:
+            data.rooms &&
+            typeof data.rooms === 'object' &&
+            !Array.isArray(data.rooms)
+              ? data.rooms
+              : {},
+
+          cooldowns:
+            data.cooldowns &&
+            typeof data.cooldowns === 'object' &&
+            !Array.isArray(data.cooldowns)
+              ? data.cooldowns
+              : {},
         }
       : defaults;
-  } catch {
+  } catch (error) {
+    console.log('⚠️ [SLAP_STORE_READ_FAILED]', error?.message || error);
     return defaultSlapStore();
   }
 }
@@ -86,9 +519,16 @@ async function writeSlapStore(store) {
   const safeStore = {
     settings: {
       enabled: store?.settings?.enabled === true,
+
       prizePoints: Math.max(
         1,
         Number(store?.settings?.prizePoints) || 100,
+      ),
+
+      playerCooldownMs: Math.max(
+        0,
+        Number(store?.settings?.playerCooldownMs) ||
+          DEFAULT_COOLDOWN_MS,
       ),
     },
 
@@ -104,21 +544,210 @@ async function writeSlapStore(store) {
       !Array.isArray(store.stats)
         ? store.stats
         : {},
+
+    rooms:
+      store?.rooms &&
+      typeof store.rooms === 'object' &&
+      !Array.isArray(store.rooms)
+        ? store.rooms
+        : {},
+
+    cooldowns:
+      store?.cooldowns &&
+      typeof store.cooldowns === 'object' &&
+      !Array.isArray(store.cooldowns)
+        ? store.cooldowns
+        : {},
   };
 
   await fs.mkdir(path.dirname(SLAP_GAME_FILE), {
     recursive: true,
   });
 
+  const tempFile = `${SLAP_GAME_FILE}.tmp`;
+
   await fs.writeFile(
-    SLAP_GAME_FILE,
+    tempFile,
     JSON.stringify(safeStore, null, 2),
     'utf8',
   );
+
+  await fs.rename(tempFile, SLAP_GAME_FILE);
 }
 
 function makeChallengeId() {
   return `slap_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function getRoomKey({
+  roomId,
+  roomName,
+}) {
+  const id = clean(roomId);
+
+  if (id) {
+    return `id:${id}`;
+  }
+
+  const name = normalizeKey(roomName);
+
+  return name ? `name:${name}` : '';
+}
+
+function ensurePlayerStats(
+  store,
+  {
+    playerKey,
+    username,
+    userId,
+  },
+) {
+  const key = clean(playerKey);
+
+  if (!key) {
+    return null;
+  }
+
+  if (!store.stats || typeof store.stats !== 'object') {
+    store.stats = {};
+  }
+
+  if (!store.stats[key]) {
+    store.stats[key] = {
+      playerKey: key,
+      username: clean(username),
+      userId: clean(userId),
+
+      wins: 0,
+      losses: 0,
+      played: 0,
+      pointsWon: 0,
+
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  store.stats[key].username =
+    clean(username) || clean(store.stats[key].username);
+
+  store.stats[key].userId =
+    clean(userId) || clean(store.stats[key].userId);
+
+  store.stats[key].updatedAt = new Date().toISOString();
+
+  return store.stats[key];
+}
+
+function ensureRoomStats(
+  store,
+  {
+    roomId,
+    roomName,
+  },
+) {
+  const roomKey = getRoomKey({
+    roomId,
+    roomName,
+  });
+
+  if (!roomKey) {
+    return null;
+  }
+
+  if (!store.rooms || typeof store.rooms !== 'object') {
+    store.rooms = {};
+  }
+
+  if (!store.rooms[roomKey]) {
+    store.rooms[roomKey] = {
+      roomKey,
+      roomId: clean(roomId),
+      roomName: clean(roomName) || clean(roomId) || 'Unknown room',
+
+      wins: 0,
+      losses: 0,
+      played: 0,
+      pointsWon: 0,
+
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  store.rooms[roomKey].roomId =
+    clean(roomId) || clean(store.rooms[roomKey].roomId);
+
+  store.rooms[roomKey].roomName =
+    clean(roomName) || clean(store.rooms[roomKey].roomName);
+
+  store.rooms[roomKey].updatedAt = new Date().toISOString();
+
+  return store.rooms[roomKey];
+}
+
+/*
+  يُستدعى قبل تنفيذ أمر "كف".
+  المهلة تُحسب على اللاعب عالميًا، وليس داخل غرفة بعينها.
+*/
+export async function consumeSlapCooldown({
+  playerKey,
+  username,
+  userId,
+}) {
+  const store = await readSlapStore();
+  const key = normalizeKey(playerKey);
+
+  if (!key) {
+    return {
+      ok: false,
+      reason: 'missing_player',
+      waitMs: 0,
+      waitSeconds: 0,
+    };
+  }
+
+  const cooldownMs = Math.max(
+    0,
+    Number(store.settings.playerCooldownMs) ||
+      DEFAULT_COOLDOWN_MS,
+  );
+
+  const now = Date.now();
+  const lastAt = Number(store.cooldowns?.[key]?.lastAt || 0);
+  const elapsed = now - lastAt;
+
+  if (lastAt > 0 && elapsed < cooldownMs) {
+    const waitMs = cooldownMs - elapsed;
+
+    return {
+      ok: false,
+      reason: 'cooldown',
+      waitMs,
+      waitSeconds: Math.ceil(waitMs / 1000),
+      cooldownMs,
+    };
+  }
+
+  store.cooldowns ||= {};
+
+  store.cooldowns[key] = {
+    playerKey: clean(playerKey),
+    username: clean(username),
+    userId: clean(userId),
+    lastAt: now,
+    lastAtIso: new Date(now).toISOString(),
+  };
+
+  await writeSlapStore(store);
+
+  return {
+    ok: true,
+    reason: '',
+    waitMs: 0,
+    waitSeconds: 0,
+    cooldownMs,
+  };
 }
 
 export async function getActiveSlapChallenge() {
@@ -204,51 +833,6 @@ export async function createSlapChallenge({
     challenge,
     settings: store.settings,
   };
-}
-
-function ensurePlayerStats(
-  store,
-  {
-    playerKey,
-    username,
-    userId,
-  },
-) {
-  const key = clean(playerKey);
-
-  if (!key) {
-    return null;
-  }
-
-  if (!store.stats || typeof store.stats !== 'object') {
-    store.stats = {};
-  }
-
-  if (!store.stats[key]) {
-    store.stats[key] = {
-      playerKey: key,
-      username: clean(username),
-      userId: clean(userId),
-
-      wins: 0,
-      losses: 0,
-      played: 0,
-      pointsWon: 0,
-
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-  }
-
-  store.stats[key].username =
-    clean(username) || clean(store.stats[key].username);
-
-  store.stats[key].userId =
-    clean(userId) || clean(store.stats[key].userId);
-
-  store.stats[key].updatedAt = new Date().toISOString();
-
-  return store.stats[key];
 }
 
 export async function joinAndResolveSlapChallenge({
@@ -345,6 +929,35 @@ export async function joinAndResolveSlapChallenge({
     loserStats.updatedAt = new Date().toISOString();
   }
 
+  const winnerRoomStats = ensureRoomStats(store, winner);
+  const loserRoomStats = ensureRoomStats(store, loser);
+
+  if (winnerRoomStats) {
+    winnerRoomStats.wins = Number(winnerRoomStats.wins || 0) + 1;
+    winnerRoomStats.played = Number(winnerRoomStats.played || 0) + 1;
+    winnerRoomStats.pointsWon =
+      Number(winnerRoomStats.pointsWon || 0) + prizePoints;
+    winnerRoomStats.updatedAt = new Date().toISOString();
+  }
+
+  if (loserRoomStats) {
+    loserRoomStats.losses = Number(loserRoomStats.losses || 0) + 1;
+
+    /*
+      إذا كان اللاعبان من الغرفة نفسها، لا نضاعف played للغرفة،
+      لكن نسجل الفوز والخسارة بصورة طبيعية.
+    */
+    const sameRoom =
+      winnerRoomStats &&
+      winnerRoomStats.roomKey === loserRoomStats.roomKey;
+
+    if (!sameRoom) {
+      loserRoomStats.played = Number(loserRoomStats.played || 0) + 1;
+    }
+
+    loserRoomStats.updatedAt = new Date().toISOString();
+  }
+
   const result = {
     challengeId: challenge.id,
     starter,
@@ -355,11 +968,6 @@ export async function joinAndResolveSlapChallenge({
     finishedAt: new Date().toISOString(),
   };
 
-  /*
-    مهم:
-    بعد دخول اللاعب الثاني وتحديد الفائز،
-    يتم إغلاق التحدي حتى يستطيع أي لاعب بدء تحدي جديد.
-  */
   store.activeChallenge = null;
 
   await writeSlapStore(store);
@@ -387,7 +995,7 @@ export async function cancelSlapChallenge() {
 export async function getSlapTopPlayers(limit = 10) {
   const store = await readSlapStore();
 
-  const items = Object.values(store.stats || {})
+  return Object.values(store.stats || {})
     .filter((item) => {
       return item && Number(item.wins) > 0;
     })
@@ -398,7 +1006,8 @@ export async function getSlapTopPlayers(limit = 10) {
         return winsDiff;
       }
 
-      const pointsDiff = Number(b.pointsWon || 0) - Number(a.pointsWon || 0);
+      const pointsDiff =
+        Number(b.pointsWon || 0) - Number(a.pointsWon || 0);
 
       if (pointsDiff !== 0) {
         return pointsDiff;
@@ -406,9 +1015,40 @@ export async function getSlapTopPlayers(limit = 10) {
 
       return Number(b.played || 0) - Number(a.played || 0);
     })
-    .slice(0, limit);
+    .slice(0, Math.max(1, Number(limit) || 10));
+}
 
-  return items;
+export async function getSlapTopRooms(limit = 10) {
+  const store = await readSlapStore();
+
+  return Object.values(store.rooms || {})
+    .filter((item) => {
+      return item && Number(item.wins) > 0;
+    })
+    .sort((a, b) => {
+      const winsDiff = Number(b.wins || 0) - Number(a.wins || 0);
+
+      if (winsDiff !== 0) {
+        return winsDiff;
+      }
+
+      const pointsDiff =
+        Number(b.pointsWon || 0) - Number(a.pointsWon || 0);
+
+      if (pointsDiff !== 0) {
+        return pointsDiff;
+      }
+
+      const lossesDiff =
+        Number(a.losses || 0) - Number(b.losses || 0);
+
+      if (lossesDiff !== 0) {
+        return lossesDiff;
+      }
+
+      return Number(b.played || 0) - Number(a.played || 0);
+    })
+    .slice(0, Math.max(1, Number(limit) || 10));
 }
 
 export async function getSlapSettings() {
