@@ -1,3 +1,4 @@
+
 // import {
 //   clean,
 //   normalizeCommand,
@@ -10,9 +11,11 @@
 // } from '../services/acl.service.js';
 
 // import {
+//   consumeSlapCooldown,
 //   createSlapChallenge,
 //   getActiveSlapChallenge,
 //   getSlapTopPlayers,
+//   getSlapTopRooms,
 //   joinAndResolveSlapChallenge,
 // } from '../services/slapGame.service.js';
 
@@ -30,6 +33,20 @@
 //     return {
 //       isCommand: true,
 //       type: 'top',
+//     };
+//   }
+
+//   /*
+//     أمر مختصر لترتيب الغرف:
+//     كفغ = ترتيب الغرف حسب عدد انتصارات لعبة الكف.
+//   */
+//   if (
+//     command === 'كفغ' ||
+//     command === 'غرفكف'
+//   ) {
+//     return {
+//       isCommand: true,
+//       type: 'rooms_top',
 //     };
 //   }
 
@@ -325,7 +342,82 @@
 //     }
 //   }
 // }
+// async function sendToSlapMatchRooms({
+//   ws,
+//   runtime,
+//   text,
+//   starter,
+//   joiner,
+//   fallbackRoomId,
+//   fallbackRoomName,
+// }) {
+//   const targets = getBroadcastTargets({
+//     runtime,
+//     currentSocket: ws,
+//     currentRoomId: fallbackRoomId,
+//     currentRoomName: fallbackRoomName,
+//   });
 
+//   const wantedRooms = new Map();
+
+//   const addRoom = (player) => {
+//     const roomId = clean(player?.roomId);
+//     const roomName = clean(player?.roomName);
+
+//     const key =
+//       normalizeRoomName(roomName) ||
+//       roomId;
+
+//     if (!key) {
+//       return;
+//     }
+
+//     wantedRooms.set(key, {
+//       roomId,
+//       roomName,
+//     });
+//   };
+
+//   addRoom(starter);
+//   addRoom(joiner);
+
+//   for (const [roomKey, room] of wantedRooms.entries()) {
+//     const target = targets.find((item) => {
+//       const itemKey =
+//         normalizeRoomName(item.roomName) ||
+//         clean(item.roomId);
+
+//       return itemKey === roomKey;
+//     });
+
+//     if (target) {
+//       sendRoomTextSafe(
+//         target.socket,
+//         target.roomId || room.roomId || fallbackRoomId,
+//         target.roomName || room.roomName || fallbackRoomName,
+//         text,
+//       );
+
+//       continue;
+//     }
+
+//     /*
+//       حل احتياطي للغرفة الحالية.
+//     */
+//     const fallbackKey =
+//       normalizeRoomName(fallbackRoomName) ||
+//       clean(fallbackRoomId);
+
+//     if (fallbackKey === roomKey) {
+//       sendRoomTextSafe(
+//         ws,
+//         room.roomId || fallbackRoomId,
+//         room.roomName || fallbackRoomName,
+//         text,
+//       );
+//     }
+//   }
+// }
 // function buildChallengeAnnouncement({
 //   playerName,
 //   prizePoints,
@@ -394,6 +486,21 @@
 //     clean(result.loser.userId) ||
 //     'Loser';
 
+//   const starterRoom =
+//     clean(result.starter.roomName) ||
+//     clean(result.starter.roomId) ||
+//     'غرفة غير معروفة';
+
+//   const joinerRoom =
+//     clean(result.joiner.roomName) ||
+//     clean(result.joiner.roomId) ||
+//     'غرفة غير معروفة';
+
+//   const winnerRoom =
+//     clean(result.winner.roomName) ||
+//     clean(result.winner.roomId) ||
+//     'غرفة غير معروفة';
+
 //   const funLines = [
 //     'الكف نزل بصوت عالي جدًا.',
 //     'الغرفة سكتت ثانية من قوة الكف.',
@@ -409,13 +516,14 @@
 //   return [
 //     '🥊 نتيجة تحدي الكف',
 //     '',
-//     `👋 ${starterName}`,
+//     `👋 ${starterName} من غرفة ${starterRoom}`,
 //     'ضد',
-//     `👋 ${joinerName}`,
+//     `👋 ${joinerName} من غرفة ${joinerRoom}`,
 //     '',
 //     randomLine,
 //     '',
 //     `🏆 الفائز: ${winnerName}`,
+//     `🏠 الغرفة الفائزة: ${winnerRoom}`,
 //     `😵 الخاسر: ${loserName}`,
 //     `💰 الجائزة: +${result.prizePoints} نقطة`,
 //   ].join('\n');
@@ -448,6 +556,54 @@
 //     '🥊 أفضل 10 لاعبين في الكف',
 //     '',
 //     ...lines,
+//   ].join('\n');
+// }
+
+// function buildRoomsTopText(rooms) {
+//   if (!rooms.length) {
+//     return [
+//       '🏠 ترتيب غرف الكف',
+//       '',
+//       'لا توجد غرف فائزة حتى الآن.',
+//       'اكتب كف لبدء أول تحدي.',
+//     ].join('\n');
+//   }
+
+//   const lines = rooms.map((room, index) => {
+//     const roomName =
+//       clean(room.roomName) ||
+//       clean(room.roomId) ||
+//       'غرفة غير معروفة';
+
+//     const wins = Number(room.wins) || 0;
+//     const losses = Number(room.losses) || 0;
+//     const pointsWon = Number(room.pointsWon) || 0;
+
+//     return `${index + 1}. ${roomName} | فوز: ${wins} | خسارة: ${losses} | نقاط: ${pointsWon}`;
+//   });
+
+//   return [
+//     '🏠 أفضل 10 غرف في لعبة الكف',
+//     '',
+//     ...lines,
+//   ].join('\n');
+// }
+
+// function buildCooldownText(waitSeconds) {
+//   const totalSeconds = Math.max(1, Number(waitSeconds) || 1);
+//   const minutes = Math.floor(totalSeconds / 60);
+//   const seconds = totalSeconds % 60;
+
+//   const remaining = [
+//     minutes > 0 ? `${minutes} دقيقة` : '',
+//     seconds > 0 ? `${seconds} ثانية` : '',
+//   ]
+//     .filter(Boolean)
+//     .join(' و');
+
+//   return [
+//     '⏳ يمكنك إرسال أمر كف مرة واحدة كل 5 دقائق.',
+//     `الوقت المتبقي: ${remaining}`,
 //   ].join('\n');
 // }
 
@@ -492,6 +648,19 @@
 //     return true;
 //   }
 
+//   if (parsed.type === 'rooms_top') {
+//     const topRooms = await getSlapTopRooms(10);
+
+//     sendRoomTextSafe(
+//       ws,
+//       targetRoomId,
+//       targetRoomName,
+//       buildRoomsTopText(topRooms),
+//     );
+
+//     return true;
+//   }
+
 //   const playerKey = getPlayerKey(roomMessage);
 //   const playerIdKey = getPlayerIdKey(roomMessage);
 //   const playerName = getPlayerName(roomMessage);
@@ -502,6 +671,27 @@
 //       targetRoomId,
 //       targetRoomName,
 //       identifyErrorText(),
+//     );
+
+//     return true;
+//   }
+
+//   /*
+//     كل لاعب يستطيع استخدام "كف" مرة واحدة كل خمس دقائق،
+//     سواء كان سيبدأ تحديًا أو سينضم إلى تحدٍ قائم.
+//   */
+//   const cooldown = await consumeSlapCooldown({
+//     playerKey: playerIdKey,
+//     username: clean(roomMessage.fromUsername),
+//     userId: clean(roomMessage.fromUserId),
+//   });
+
+//   if (!cooldown.ok) {
+//     sendRoomTextSafe(
+//       ws,
+//       targetRoomId,
+//       targetRoomName,
+//       buildCooldownText(cooldown.waitSeconds),
 //     );
 
 //     return true;
@@ -665,19 +855,24 @@
 //       resolved.result.prizePoints,
 //     );
 //   }
+// await sendToSlapMatchRooms({
+//   ws,
+//   runtime,
 
-//   await sendToAllSlapRooms({
-//     ws,
-//     runtime,
-//     text: buildResultText({
-//       result: resolved.result,
-//     }),
-//     fallbackRoomId: targetRoomId,
-//     fallbackRoomName: targetRoomName,
-//   });
+//   text: buildResultText({
+//     result: resolved.result,
+//   }),
 
-//   return true;
+//   starter: resolved.result.starter,
+//   joiner: resolved.result.joiner,
+
+//   fallbackRoomId: targetRoomId,
+//   fallbackRoomName: targetRoomName,
+// });
+// return true;
+
 // }
+
 import {
   clean,
   normalizeCommand,
@@ -698,6 +893,18 @@ import {
   joinAndResolveSlapChallenge,
 } from '../services/slapGame.service.js';
 
+
+/*
+  ضع رابط صورة نتيجة اللعبة هنا،
+  أو أضفه في ملف البيئة:
+  SLAP_RESULT_IMAGE_URL=https://example.com/slap-result.jpg
+*/
+const SLAP_RESULT_IMAGE_URL = String(
+  process.env.SLAP_RESULT_IMAGE_URL ||
+    'https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExOXRsOWpmeDEzYTA0eWF6aTh0MjhrYXdiOTgxM20yMmlnN29lZ3RrNCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/i5aZSGUe4HJQTgeXAu/giphy.gif',
+).trim();
+
+
 function parseSlapCommand(text) {
   const command = normalizeCommand(text);
 
@@ -705,6 +912,15 @@ function parseSlapCommand(text) {
     return {
       isCommand: true,
       type: 'slap',
+      lang: 'ar',
+    };
+  }
+
+  if (command === 'slap') {
+    return {
+      isCommand: true,
+      type: 'slap',
+      lang: 'en',
     };
   }
 
@@ -712,13 +928,21 @@ function parseSlapCommand(text) {
     return {
       isCommand: true,
       type: 'top',
+      lang: 'ar',
     };
   }
 
-  /*
-    أمر مختصر لترتيب الغرف:
-    كفغ = ترتيب الغرف حسب عدد انتصارات لعبة الكف.
-  */
+  if (
+    command === 'slaptop' ||
+    command === 'slap-top'
+  ) {
+    return {
+      isCommand: true,
+      type: 'top',
+      lang: 'en',
+    };
+  }
+
   if (
     command === 'كفغ' ||
     command === 'غرفكف'
@@ -726,12 +950,25 @@ function parseSlapCommand(text) {
     return {
       isCommand: true,
       type: 'rooms_top',
+      lang: 'ar',
+    };
+  }
+
+  if (
+    command === 'slaprooms' ||
+    command === 'slap-rooms'
+  ) {
+    return {
+      isCommand: true,
+      type: 'rooms_top',
+      lang: 'en',
     };
   }
 
   return {
     isCommand: false,
     type: '',
+    lang: 'ar',
   };
 }
 
@@ -970,6 +1207,75 @@ function sendRoomTextSafe(socket, roomId, roomName, text) {
   return false;
 }
 
+
+function isValidSlapImageUrl(value) {
+  const url = clean(value);
+
+  return (
+    /^https?:\/\//i.test(url) &&
+    url !== 'PUT_SLAP_RESULT_IMAGE_URL_HERE'
+  );
+}
+
+function sendRoomImageSafe(
+  socket,
+  roomId,
+  roomName,
+  imageUrl,
+) {
+  const url = clean(imageUrl);
+
+  if (!socket || !isValidSlapImageUrl(url)) {
+    return false;
+  }
+
+  if (typeof socket.sendRoomImageUrl === 'function') {
+    try {
+      socket.sendRoomImageUrl(
+        roomId,
+        url,
+        roomName,
+      );
+
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ [SLAP_SEND_ROOM_IMAGE_FAILED_1]',
+        error?.message || error,
+      );
+    }
+  }
+
+  if (typeof socket.send === 'function') {
+    try {
+      socket.send({
+        handler: 'room.message.send',
+        roomId: String(roomId || '').trim(),
+        roomName: String(roomName || '').trim(),
+        type: 'image',
+        text: '',
+        url,
+        media: {
+          url,
+          fileName: 'slap-result.jpg',
+          mimeType: 'image/jpeg',
+          sizeBytes: 0,
+        },
+      });
+
+      return true;
+    } catch (error) {
+      console.log(
+        '⚠️ [SLAP_SEND_ROOM_IMAGE_FAILED_2]',
+        error?.message || error,
+      );
+    }
+  }
+
+  return false;
+}
+
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -1021,209 +1327,319 @@ async function sendToAllSlapRooms({
     }
   }
 }
+async function sendToSlapMatchRooms({
+  ws,
+  runtime,
+  text,
+  imageUrl,
+  starter,
+  joiner,
+  fallbackRoomId,
+  fallbackRoomName,
+}) {
+  const targets = getBroadcastTargets({
+    runtime,
+    currentSocket: ws,
+    currentRoomId: fallbackRoomId,
+    currentRoomName: fallbackRoomName,
+  });
 
+  const wantedRooms = new Map();
+
+  const addRoom = (player) => {
+    const roomId = clean(player?.roomId);
+    const roomName = clean(player?.roomName);
+
+    const key =
+      normalizeRoomName(roomName) ||
+      roomId;
+
+    if (!key) {
+      return;
+    }
+
+    wantedRooms.set(key, {
+      roomId,
+      roomName,
+    });
+  };
+
+  addRoom(starter);
+  addRoom(joiner);
+
+  for (const [roomKey, room] of wantedRooms.entries()) {
+    const target = targets.find((item) => {
+      const itemKey =
+        normalizeRoomName(item.roomName) ||
+        clean(item.roomId);
+
+      return itemKey === roomKey;
+    });
+
+    if (target) {
+      const finalRoomId =
+        target.roomId ||
+        room.roomId ||
+        fallbackRoomId;
+
+      const finalRoomName =
+        target.roomName ||
+        room.roomName ||
+        fallbackRoomName;
+
+      sendRoomTextSafe(
+        target.socket,
+        finalRoomId,
+        finalRoomName,
+        text,
+      );
+
+      sendRoomImageSafe(
+        target.socket,
+        finalRoomId,
+        finalRoomName,
+        imageUrl,
+      );
+
+      continue;
+    }
+
+    /*
+      حل احتياطي للغرفة الحالية.
+    */
+    const fallbackKey =
+      normalizeRoomName(fallbackRoomName) ||
+      clean(fallbackRoomId);
+
+    if (fallbackKey === roomKey) {
+      const finalRoomId =
+        room.roomId ||
+        fallbackRoomId;
+
+      const finalRoomName =
+        room.roomName ||
+        fallbackRoomName;
+
+      sendRoomTextSafe(
+        ws,
+        finalRoomId,
+        finalRoomName,
+        text,
+      );
+
+      sendRoomImageSafe(
+        ws,
+        finalRoomId,
+        finalRoomName,
+        imageUrl,
+      );
+    }
+  }
+}
 function buildChallengeAnnouncement({
   playerName,
   prizePoints,
+  lang,
 }) {
+  if (lang === 'en') {
+    return [
+      `🥊 ${playerName} started a slap challenge!`,
+      `Type slap to join • Prize: ${prizePoints} points`,
+    ].join('');
+  }
+
   return [
-    '🥊 تحدي كف جديد',
-    '',
-    `👋 ${playerName} أرسل تحدي كف!`,
-    '',
-    'أول مستخدم في أي غرفة يكتب:',
-    'كف',
-    'يدخل معه التحدي.',
-    '',
-    `🏆 الجائزة: ${prizePoints} نقطة`,
-    '⏳ التحدي مفتوح حتى يدخل لاعب آخر.',
-  ].join('\n');
+    `🥊 ${playerName} بدأ تحدي كف!`,
+    `اكتب كف للانضمام • الجائزة: ${prizePoints} نقطة`,
+  ].join('');
 }
 
 function buildWaitingText({
   playerName,
+  lang,
 }) {
-  return [
-    '🥊 لديك تحدي كف مفتوح بالفعل.',
-    '',
-    `👋 ${playerName} بدأ تحدي كف وينتظر لاعبًا آخر.`,
-    '',
-    'لا يمكنك بدء تحدي جديد قبل أن يدخل لاعب آخر.',
-  ].join('\n');
+  return lang === 'en'
+    ? `⏳ ${playerName} is waiting for an opponent.`
+    : `⏳ ${playerName} ينتظر منافسًا.`;
 }
 
 function buildAlreadyActiveText({
   starterName,
+  lang,
 }) {
-  return [
-    '🥊 يوجد تحدي كف مفتوح بالفعل.',
-    '',
-    `👋 صاحب التحدي: ${starterName}`,
-    '',
-    'اكتب كف للدخول معه بدل إنشاء تحدي جديد.',
-  ].join('\n');
+  return lang === 'en'
+    ? `🥊 ${starterName}'s challenge is open. Type slap to join.`
+    : `🥊 تحدي ${starterName} مفتوح. اكتب كف للانضمام.`;
 }
 
-function buildSamePlayerText() {
-  return [
-    '😂 لا يمكنك تحدي نفسك.',
-    'انتظر لاعبًا آخر يكتب: كف',
-  ].join('\n');
+function buildSamePlayerText(lang) {
+  return lang === 'en'
+    ? '😂 You cannot challenge yourself.'
+    : '😂 لا يمكنك تحدي نفسك.';
 }
 
 function buildResultText({
   result,
+  lang,
 }) {
-  const starterName = clean(result.starter.username) ||
+  const starterName =
+    clean(result.starter.username) ||
     clean(result.starter.userId) ||
-    'Player 1';
+    (lang === 'en' ? 'Player 1' : 'اللاعب الأول');
 
-  const joinerName = clean(result.joiner.username) ||
+  const joinerName =
+    clean(result.joiner.username) ||
     clean(result.joiner.userId) ||
-    'Player 2';
+    (lang === 'en' ? 'Player 2' : 'اللاعب الثاني');
 
-  const winnerName = clean(result.winner.username) ||
+  const winnerName =
+    clean(result.winner.username) ||
     clean(result.winner.userId) ||
-    'Winner';
+    (lang === 'en' ? 'Winner' : 'الفائز');
 
-  const loserName = clean(result.loser.username) ||
+  const loserName =
+    clean(result.loser.username) ||
     clean(result.loser.userId) ||
-    'Loser';
+    (lang === 'en' ? 'Loser' : 'الخاسر');
 
   const starterRoom =
     clean(result.starter.roomName) ||
     clean(result.starter.roomId) ||
-    'غرفة غير معروفة';
+    (lang === 'en' ? 'Unknown room' : 'غرفة غير معروفة');
 
   const joinerRoom =
     clean(result.joiner.roomName) ||
     clean(result.joiner.roomId) ||
-    'غرفة غير معروفة';
+    (lang === 'en' ? 'Unknown room' : 'غرفة غير معروفة');
 
   const winnerRoom =
     clean(result.winner.roomName) ||
     clean(result.winner.roomId) ||
-    'غرفة غير معروفة';
+    (lang === 'en' ? 'Unknown room' : 'غرفة غير معروفة');
 
-  const funLines = [
-    'الكف نزل بصوت عالي جدًا.',
-    'الغرفة سكتت ثانية من قوة الكف.',
-    'الكف كان سريع لدرجة البوت نفسه اتخض.',
-    'الضربة كانت محسوبة بالملّي.',
-    'ده مش كف، ده إعلان رسمي بالفوز.',
-    'الكف وصل قبل ما الخاسر يستوعب.',
-    'الصفعة كانت قانونية لكن مؤلمة.',
-  ];
-
-  const randomLine = funLines[Math.floor(Math.random() * funLines.length)];
+  if (lang === 'en') {
+    return [
+      `🥊 ${starterName} (${starterRoom}) vs ${joinerName} (${joinerRoom})`,
+      `🏆 ${winnerName} won • Room: ${winnerRoom}`,
+      `😵 ${loserName} • +${result.prizePoints} points`,
+    ].join('');
+  }
 
   return [
-    '🥊 نتيجة تحدي الكف',
-    '',
-    `👋 ${starterName} من غرفة ${starterRoom}`,
-    'ضد',
-    `👋 ${joinerName} من غرفة ${joinerRoom}`,
-    '',
-    randomLine,
-    '',
-    `🏆 الفائز: ${winnerName}`,
-    `🏠 الغرفة الفائزة: ${winnerRoom}`,
-    `😵 الخاسر: ${loserName}`,
-    `💰 الجائزة: +${result.prizePoints} نقطة`,
-  ].join('\n');
+    `🥊 ${starterName} (${starterRoom}) ضد ${joinerName} (${joinerRoom})`,
+    `🏆 الفائز: ${winnerName} • الغرفة: ${winnerRoom}`,
+    `😵 الخاسر: ${loserName} • +${result.prizePoints} نقطة`,
+  ].join('');
 }
 
-function buildTopText(players) {
+function buildTopText(players, lang) {
   if (!players.length) {
-    return [
-      '🥊 كفوفي',
-      '',
-      'لا يوجد فائزون حتى الآن.',
-      'اكتب كف لبدء أول تحدي.',
-    ].join('\n');
+    return lang === 'en'
+      ? '🥊 No slap winners yet.'
+      : '🥊 لا يوجد فائزون حتى الآن.';
   }
 
   const lines = players.map((player, index) => {
-    const name = clean(player.username) ||
+    const name =
+      clean(player.username) ||
       clean(player.userId) ||
       clean(player.playerKey) ||
-      'Unknown';
+      (lang === 'en' ? 'Unknown' : 'مجهول');
 
     const wins = Number(player.wins) || 0;
     const losses = Number(player.losses) || 0;
-    const pointsWon = Number(player.pointsWon) || 0;
 
-    return `${index + 1}. ${name} | فوز: ${wins} | خسارة: ${losses} | نقاط: ${pointsWon}`;
+    return lang === 'en'
+      ? `${index + 1}. ${name} • W:${wins} L:${losses}`
+      : `${index + 1}. ${name} • ف:${wins} خ:${losses}`;
   });
 
   return [
-    '🥊 أفضل 10 لاعبين في الكف',
-    '',
+    lang === 'en'
+      ? '🥊 Top slap players'
+      : '🥊 أفضل لاعبي الكف',
     ...lines,
-  ].join('\n');
+  ].join('');
 }
 
-function buildRoomsTopText(rooms) {
+function buildRoomsTopText(rooms, lang) {
   if (!rooms.length) {
-    return [
-      '🏠 ترتيب غرف الكف',
-      '',
-      'لا توجد غرف فائزة حتى الآن.',
-      'اكتب كف لبدء أول تحدي.',
-    ].join('\n');
+    return lang === 'en'
+      ? '🏠 No winning rooms yet.'
+      : '🏠 لا توجد غرف فائزة حتى الآن.';
   }
 
   const lines = rooms.map((room, index) => {
     const roomName =
       clean(room.roomName) ||
       clean(room.roomId) ||
-      'غرفة غير معروفة';
+      (lang === 'en' ? 'Unknown room' : 'غرفة مجهولة');
 
     const wins = Number(room.wins) || 0;
     const losses = Number(room.losses) || 0;
-    const pointsWon = Number(room.pointsWon) || 0;
 
-    return `${index + 1}. ${roomName} | فوز: ${wins} | خسارة: ${losses} | نقاط: ${pointsWon}`;
+    return lang === 'en'
+      ? `${index + 1}. ${roomName} • W:${wins} L:${losses}`
+      : `${index + 1}. ${roomName} • ف:${wins} خ:${losses}`;
   });
 
   return [
-    '🏠 أفضل 10 غرف في لعبة الكف',
-    '',
+    lang === 'en'
+      ? '🏠 Top slap rooms'
+      : '🏠 أفضل غرف الكف',
     ...lines,
-  ].join('\n');
+  ].join('');
 }
 
-function buildCooldownText(waitSeconds) {
-  const totalSeconds = Math.max(1, Number(waitSeconds) || 1);
+function buildCooldownText(
+  waitSeconds,
+  lang,
+) {
+  const totalSeconds = Math.max(
+    1,
+    Number(waitSeconds) || 1,
+  );
+
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
 
+  if (lang === 'en') {
+    const remaining = [
+      minutes > 0 ? `${minutes}m` : '',
+      seconds > 0 ? `${seconds}s` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+
+    return `⏳ Try again in ${remaining}.`;
+  }
+
   const remaining = [
-    minutes > 0 ? `${minutes} دقيقة` : '',
-    seconds > 0 ? `${seconds} ثانية` : '',
+    minutes > 0 ? `${minutes} د` : '',
+    seconds > 0 ? `${seconds} ث` : '',
   ]
     .filter(Boolean)
-    .join(' و');
+    .join(' ');
 
-  return [
-    '⏳ يمكنك إرسال أمر كف مرة واحدة كل 5 دقائق.',
-    `الوقت المتبقي: ${remaining}`,
-  ].join('\n');
+  return `⏳ حاول بعد ${remaining}.`;
 }
 
-function identifyErrorText() {
-  return '❌ لم أستطع تحديد اللاعب.';
+function identifyErrorText(lang) {
+  return lang === 'en'
+    ? '❌ Could not identify the player.'
+    : '❌ تعذر تحديد اللاعب.';
 }
 
-function disabledText() {
-  return '❌ لعبة الكف متوقفة حاليًا.';
+function disabledText(lang) {
+  return lang === 'en'
+    ? '❌ Slap game is disabled.'
+    : '❌ لعبة الكف متوقفة.';
 }
 
-function noActiveChallengeText() {
-  return [
-    '🥊 لا يوجد تحدي كف مفتوح الآن.',
-    'اكتب كف لبدء تحدي جديد.',
-  ].join('\n');
+function noActiveChallengeText(lang) {
+  return lang === 'en'
+    ? '🥊 No open challenge. Type slap to start.'
+    : '🥊 لا يوجد تحدٍ مفتوح. اكتب كف للبدء.';
 }
 
 export async function handleSlapCommand({
@@ -1246,7 +1662,7 @@ export async function handleSlapCommand({
       ws,
       targetRoomId,
       targetRoomName,
-      buildTopText(topPlayers),
+      buildTopText(topPlayers, parsed.lang),
     );
 
     return true;
@@ -1259,7 +1675,7 @@ export async function handleSlapCommand({
       ws,
       targetRoomId,
       targetRoomName,
-      buildRoomsTopText(topRooms),
+      buildRoomsTopText(topRooms, parsed.lang),
     );
 
     return true;
@@ -1274,7 +1690,7 @@ export async function handleSlapCommand({
       ws,
       targetRoomId,
       targetRoomName,
-      identifyErrorText(),
+      identifyErrorText(parsed.lang),
     );
 
     return true;
@@ -1295,7 +1711,7 @@ export async function handleSlapCommand({
       ws,
       targetRoomId,
       targetRoomName,
-      buildCooldownText(cooldown.waitSeconds),
+      buildCooldownText(cooldown.waitSeconds, parsed.lang),
     );
 
     return true;
@@ -1318,7 +1734,7 @@ export async function handleSlapCommand({
           ws,
           targetRoomId,
           targetRoomName,
-          disabledText(),
+          disabledText(parsed.lang),
         );
 
         return true;
@@ -1331,6 +1747,7 @@ export async function handleSlapCommand({
           targetRoomName,
           buildWaitingText({
             playerName,
+            lang: parsed.lang,
           }),
         );
 
@@ -1349,6 +1766,7 @@ export async function handleSlapCommand({
           targetRoomName,
           buildAlreadyActiveText({
             starterName,
+            lang: parsed.lang,
           }),
         );
 
@@ -1359,7 +1777,9 @@ export async function handleSlapCommand({
         ws,
         targetRoomId,
         targetRoomName,
-        '❌ لم أستطع إنشاء تحدي الكف.',
+        parsed.lang === 'en'
+          ? '❌ Could not create the slap challenge.'
+          : '❌ تعذر إنشاء تحدي الكف.',
       );
 
       return true;
@@ -1371,6 +1791,7 @@ export async function handleSlapCommand({
       text: buildChallengeAnnouncement({
         playerName,
         prizePoints: created.settings.prizePoints,
+        lang: parsed.lang,
       }),
       fallbackRoomId: targetRoomId,
       fallbackRoomName: targetRoomName,
@@ -1391,6 +1812,7 @@ export async function handleSlapCommand({
       targetRoomName,
       buildWaitingText({
         playerName,
+        lang: parsed.lang,
       }),
     );
 
@@ -1411,7 +1833,7 @@ export async function handleSlapCommand({
         ws,
         targetRoomId,
         targetRoomName,
-        disabledText(),
+        disabledText(parsed.lang),
       );
 
       return true;
@@ -1422,7 +1844,7 @@ export async function handleSlapCommand({
         ws,
         targetRoomId,
         targetRoomName,
-        buildSamePlayerText(),
+        buildSamePlayerText(parsed.lang),
       );
 
       return true;
@@ -1433,7 +1855,7 @@ export async function handleSlapCommand({
         ws,
         targetRoomId,
         targetRoomName,
-        noActiveChallengeText(),
+        noActiveChallengeText(parsed.lang),
       );
 
       return true;
@@ -1443,7 +1865,9 @@ export async function handleSlapCommand({
       ws,
       targetRoomId,
       targetRoomName,
-      '❌ لم أستطع إنهاء تحدي الكف.',
+      parsed.lang === 'en'
+        ? '❌ Could not finish the slap challenge.'
+        : '❌ تعذر إنهاء تحدي الكف.',
     );
 
     return true;
@@ -1459,16 +1883,23 @@ export async function handleSlapCommand({
       resolved.result.prizePoints,
     );
   }
+await sendToSlapMatchRooms({
+  ws,
+  runtime,
 
-  await sendToAllSlapRooms({
-    ws,
-    runtime,
-    text: buildResultText({
-      result: resolved.result,
-    }),
-    fallbackRoomId: targetRoomId,
-    fallbackRoomName: targetRoomName,
-  });
+  text: buildResultText({
+    result: resolved.result,
+    lang: parsed.lang,
+  }),
 
-  return true;
+  imageUrl: SLAP_RESULT_IMAGE_URL,
+
+  starter: resolved.result.starter,
+  joiner: resolved.result.joiner,
+
+  fallbackRoomId: targetRoomId,
+  fallbackRoomName: targetRoomName,
+});
+return true;
+
 }
