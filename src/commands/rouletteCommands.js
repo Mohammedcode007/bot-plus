@@ -20,7 +20,7 @@ import {
 // ============================================================
 const ROULETTE_RESULT_VIDEO_URL = String(
   process.env.ROULETTE_RESULT_VIDEO_URL ||
-    'PUT_ROULETTE_RESULT_VIDEO_URL_HERE',
+    'https://te-bot.site/uploads/badges/Roulette.json',
 ).trim();
 // ============================================================
 
