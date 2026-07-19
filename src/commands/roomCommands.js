@@ -9,7 +9,9 @@ import {
 import {
   handleInvestmentCommand,
 } from './investmentCommands.js';
-
+import {
+  handleRouletteCommand,
+} from './rouletteCommands.js';
 import {
   handleLuckyCommand,
 } from './luckyCommands.js';
@@ -1296,6 +1298,21 @@ const bankHandled = await handleBankCommand({
 });
 
 if (bankHandled) return true;
+const rouletteHandled = await handleRouletteCommand({
+  roomMessage,
+  ws,
+  runtime,
+  targetRoomId,
+  targetRoomName,
+});
+
+if (rouletteHandled) return true;
+const bribeHandled = await handleBribeCommand({
+  roomMessage,
+  ws,
+  targetRoomId,
+  targetRoomName,
+});
 const slapHandled = await handleSlapCommand({
   roomMessage,
   ws,
