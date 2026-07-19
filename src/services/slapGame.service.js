@@ -583,10 +583,18 @@ export async function getSlapTopPlayers(limit = 10) {
       return item && Number(item.wins) > 0;
     })
     .sort((a, b) => {
-      const winsDiff = Number(b.wins || 0) - Number(a.wins || 0);
+      const winsDiff =
+        Number(b.wins || 0) - Number(a.wins || 0);
 
       if (winsDiff !== 0) {
         return winsDiff;
+      }
+
+      const lossesDiff =
+        Number(a.losses || 0) - Number(b.losses || 0);
+
+      if (lossesDiff !== 0) {
+        return lossesDiff;
       }
 
       const pointsDiff =
@@ -596,7 +604,10 @@ export async function getSlapTopPlayers(limit = 10) {
         return pointsDiff;
       }
 
-      return Number(b.played || 0) - Number(a.played || 0);
+      return String(a.username || '').localeCompare(
+        String(b.username || ''),
+        'ar',
+      );
     })
     .slice(0, Math.max(1, Number(limit) || 10));
 }
